@@ -5,6 +5,11 @@ Repo: [github.com/CiprianSpiridon/free-disk-space](https://github.com/CiprianSpi
 Research for a macOS disk-audit CLI that **agents** (Claude Code, Codex,
 Grok, Cursor, …) can run themselves.
 
+The bundled catalog is the **starting point**: known caches, SDKs, tmp,
+Desktop/Downloads, generic work roots, and auto-discovered project
+folders. `catalog add` is optional customization, not required for a
+useful scan.
+
 Nothing is deleted in this repo. The CLI is not built yet.
 
 | File | Who it's for |

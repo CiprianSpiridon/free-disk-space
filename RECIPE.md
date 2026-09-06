@@ -172,8 +172,12 @@ Stop when children are < ~500 MB or the child is a known file
 
 ### Phase 4 — Pruned artifact walk (work roots only)
 
-Walk configurable work roots (default: `~/work*`, `~/src`, `~/Projects`,
-`~/dev`, `~/code`, `~/.grok/worktrees`, Desktop, Documents, Downloads).
+Walk configurable work roots. Bundled defaults (skip if missing):
+`~/work`, `~/src`, `~/Projects`, `~/dev`, `~/code`, `~/GitHub`,
+`~/gitlab`, `~/repos`, `~/Developer`, `~/workspace`, `~/go`, Desktop,
+Documents, Downloads, plus `$HOME` depth-1 dirs that look like project
+containers (`work_root_discover`: `.git` / `package.json` / `Cargo.toml`
+or ≥2 child git repos). Overlay can add more; it is **not** required.
 **Not** all of `$HOME`. **Not** `~/Library`.
 
 Rules:

@@ -2,7 +2,7 @@
 
 ## Overview
 
-Greenfield Go CLI (`freedisk`) that encodes RECIPE.md for agents: scan/report with modes quick|dev|full plus user-defined scan types, a user-editable catalog overlay (add/unassign/disable via CLI), JSON-first output, a detailed `help` command, and apply only for explicit human-named finding ids. No TUI. No automatic deletes.
+Greenfield Go CLI (`freedisk`) that encodes RECIPE.md for agents: scan/report with modes quick|dev|full plus user-defined scan types, a bundled catalog that is useful with zero overlay, optional catalog add, JSON-first output, a detailed `help` command, and apply only for explicit human-named finding ids. No TUI. No automatic deletes.
 
 ## Scope Challenge
 
@@ -13,7 +13,8 @@ Repo is research-only today: RECIPE.md, catalog/macos-hotspots.yaml, findings.sc
 
 - CLI only; no TUI, no status dashboard, no app uninstaller.
 - Primary users are agents (Claude Code, Codex, Grok, Cursor); humans get the same commands.
-- Catalog overlay via CLI: add paths, assign them to scan types, unassign from a type, or disable entirely — no YAML editing required.
+- Bundled catalog is the starting point (caches, SDKs, tmp, Desktop/Downloads, generic work roots, home project-dir discovery). Overlay is optional.
+- Catalog overlay via CLI: add/unassign/disable paths if yours are unusual — no YAML editing required, not required for a first scan.
 - Scan types are first-class: built-in quick|dev|full, disable/enable a phase (artifacts, worktrees, drill, …), add/remove a named user scan.
 - Scan modes: --quick (volume + known paths), --dev (volume + leftover worktrees + project artifacts + catalog paths tagged dev), full default (all enabled phases).
 - `freedisk help` documents catalog, scans, modes, JSON, and never-delete rules with copy-paste examples.
@@ -28,7 +29,7 @@ Repo is research-only today: RECIPE.md, catalog/macos-hotspots.yaml, findings.sc
 - macOS host with Go 1.22+ on PATH for implementers (binary itself calls diskutil/du; no sudo).
 - Treat RECIPE.md as scan-order contract; do not invent a different pipeline.
 - Emit findings matching findings.schema.json (allocated bytes, risk enum, reclaim.cmd never executed by scan).
-- Load catalog/macos-hotspots.yaml as the bundled list; missing paths skip, never fail the scan.
+- Load catalog/macos-hotspots.yaml as the bundled list; missing paths skip, never fail the scan. Zero overlay must still produce a useful report.
 - No delete on scan/why/catalog/scans/help. apply is the only mutate path.
 
 ## Non-Goals
@@ -45,6 +46,7 @@ Repo is research-only today: RECIPE.md, catalog/macos-hotspots.yaml, findings.sc
 - User-authored Go plugins for new scan engines in v1 — user scans compose existing types plus extra catalog paths.
 - A mutating clone of hgDB cleanup-space.sh (that script deletes by default). Scan never deletes; shared ~/.cargo is never implied by a project artifact apply.
 - Project-specific /tmp/hgdb-* glob in the bundled catalog; generic /tmp /var/tmp $TMPDIR are included by default.
+- Machine-specific work roots (e.g. ~/work_cip) in the bundled YAML; those are discovered at $HOME depth-1 or added via overlay.
 
 ## Contracts
 
@@ -58,7 +60,7 @@ Must validate against findings.schema.json. extra fields forbidden. reclaim.cmd 
 
 ### Catalog merge
 
-Bundled catalog/macos-hotspots.yaml + user overlay at $XDG_CONFIG_HOME/freedisk/catalog.yaml else ~/.config/freedisk/catalog.yaml (or --config). add[] appends paths with optional scans:[mode,...] (default quick,dev,full). Adding an already-known path unions scans. disable[] omits a path from every mode (unknown disable is a no-op). unassign[] removes a path from listed modes only. disable_scans[] skips named phases even in full. modes.<name>.types lists phases for `scan --mode=<name>`. work_roots[] appends artifact-walk roots. Bundled known paths default to scans [quick,full]; bundled work_roots default to [dev,full]. glob:true path entries expand; zero matches skip (not an error). catalog add PATH --glob writes glob:true (for /tmp/proj-* scratch, examples/*/target, …).
+Bundled catalog/macos-hotspots.yaml + user overlay at $XDG_CONFIG_HOME/freedisk/catalog.yaml else ~/.config/freedisk/catalog.yaml (or --config). add[] appends paths with optional scans:[mode,...] (default quick,dev,full). Adding an already-known path unions scans. disable[] omits a path from every mode (unknown disable is a no-op). unassign[] removes a path from listed modes only. disable_scans[] skips named phases even in full. modes.<name>.types lists phases for `scan --mode=<name>`. A missing overlay file is a complete scan from the bundled catalog plus work_root_discover — overlay is optional. work_roots[] in overlay appends artifact-walk roots. Bundled known paths default to scans [quick,full]; bundled work_roots default to [dev,full]. work_root_discover (enabled): $HOME depth-1 dirs with project markers or ≥ min_child_repos git children become extra walk roots. glob:true path entries expand; zero matches skip (not an error). catalog add PATH --glob writes glob:true for extra patterns only.
 
 ### Phase registration
 
@@ -86,7 +88,7 @@ diskutil/du/simctl: OS binaries, no network. Overlay write: user config dir. Las
 
 ### Agent help
 
-`freedisk help` and `--help` print the same long usage: purpose (report-only); mode table (and that --quick is NOT cargo-target-only); catalog add/unassign/disable/--glob; scans list/disable/enable/add/remove; JSON-when-piped; apply rules (explicit ids, no --all, --yes on non-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes (0 report, 2 usage, 3 unknown id); copy-paste examples for catalog and scans. `help catalog`, `help scans`, `help scan` print those commands' Long text. Help never scans or deletes.
+`freedisk help` and `--help` print the same long usage: purpose (report-only); that a first scan needs no overlay; mode table (and that --quick is NOT cargo-target-only); catalog add/unassign/disable/--glob; scans list/disable/enable/add/remove; JSON-when-piped; apply rules (explicit ids, no --all, --yes on non-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes (0 report, 2 usage, 3 unknown id); copy-paste examples for catalog and scans. `help catalog`, `help scans`, `help scan` print those commands' Long text. Help never scans or deletes.
 
 ## Existing Code Leverage
 
@@ -149,7 +151,7 @@ Add internal/findings types for the JSON document: Report, Host, Volume, Finding
 
 ### TASK-003: Load bundled catalog/macos-hotspots.yaml
 
-Read the existing catalog/macos-hotspots.yaml. Resolve search order: --catalog / FREEDISK_CATALOG / path relative to module root `catalog/macos-hotspots.yaml`. Expand `~`. Skip missing listed paths later; a missing catalog FILE is a hard error naming every path tried. Parse thresholds, path groups, artifacts (including file markers), glob:true, worktree_idle_days, worktree_inflight_hours (default 24 if absent), artifact_idle_days (default 30 if absent), tmp_idle_days (default 7 if absent). Expand $TMPDIR (and other $ENV in path) the same way as ~.
+Read the existing catalog/macos-hotspots.yaml. Resolve search order: --catalog / FREEDISK_CATALOG / path relative to module root `catalog/macos-hotspots.yaml`. Expand `~`. Skip missing listed paths later; a missing catalog FILE is a hard error naming every path tried. Parse thresholds, path groups, artifacts (including file markers), glob:true, work_root_discover, worktree_idle_days, worktree_inflight_hours (default 24 if absent), artifact_idle_days (default 30 if absent), tmp_idle_days (default 7 if absent). Expand $TMPDIR (and other $ENV in path) the same way as ~.
 
 **Type:** feature  
 **Priority:** P0  
@@ -167,7 +169,7 @@ Read the existing catalog/macos-hotspots.yaml. Resolve search order: --catalog /
 
 **Acceptance Criteria:**
 
-- Loading the repo's catalog/macos-hotspots.yaml returns at least the android homebrew SDK path `/opt/homebrew/share/android-commandlinetools`.
+- Loading the repo's catalog/macos-hotspots.yaml returns at least the android homebrew SDK path `/opt/homebrew/share/android-commandlinetools`, `/tmp`, and work_root_discover.enabled true.
 - Load of a nonexistent file returns an error that includes that path; a glob:true entry with zero matches is not a load error (empty expansion).
 - Does not follow a symlink catalog file into `/System` as success if we refuse symlink catalogs — or documents and tests that catalog file may be a regular file only.
 
@@ -415,7 +417,7 @@ Register a phase with Quick=false and Dev=false that du -d 1 equivalents on find
 
 ### TASK-014: Artifact walk (node_modules, target, pyvenv.cfg, vendor)
 
-Phase with Quick=false, Dev=true: pruned walk of merged work_roots. Record catalog artifact dirs AND files (.tsbuildinfo, .tsx-cache, .next, dist, node_modules, target). target/ only next to Cargo.toml, including examples/*/target, sdks/*/target, vendor/<crate>/target. vendor/ itself only if parent has composer.json — cargo-vendor and Rails/Go vendor are keep (source). Do not prune all vendor/: prune Composer vendor; walk cargo-vendor to find nested target/. Skip any path `git ls-files` tracks (proptest-regressions/, committed dist). Prune into node_modules and recorded target/. Artifact-named dir is not a project container. Set last_used from mtime. If idle ≥ artifact_idle_days, why includes untouched N days; risk stays rebuildable. Still emit recently touched rebuildable artifacts (user decides via apply). Reclaim for target: `cargo clean` in the parent tree. Participates in --dev and full, not --quick.
+Phase with Quick=false, Dev=true: pruned walk of merged work_roots plus work_root_discover hits (HOME depth-1 project containers; skip Library/Applications/media; skip names already in work_roots). Record catalog artifact dirs AND files (.tsbuildinfo, .tsx-cache, .next, dist, node_modules, target). target/ only next to Cargo.toml, including examples/*/target, sdks/*/target, vendor/<crate>/target. vendor/ itself only if parent has composer.json — cargo-vendor and Rails/Go vendor are keep (source). Do not prune all vendor/: prune Composer vendor; walk cargo-vendor to find nested target/. Skip any path `git ls-files` tracks (proptest-regressions/, committed dist). Prune into node_modules and recorded target/. Artifact-named dir is not a project container. Set last_used from mtime. If idle ≥ artifact_idle_days, why includes untouched N days; risk stays rebuildable. Still emit recently touched rebuildable artifacts (user decides via apply). Reclaim for target: `cargo clean` in the parent tree. Participates in --dev and full, not --quick.
 
 **Type:** feature  
 **Priority:** P2  
@@ -433,7 +435,7 @@ Phase with Quick=false, Dev=true: pruned walk of merged work_roots. Record catal
 
 **Acceptance Criteria:**
 
-- Testdata app/node_modules is one finding on --dev and full; nested node_modules inside it is not a second walk target; --quick omits it; examples/foo/.tsx-cache and .tsbuildinfo are recorded.
+- Testdata app/node_modules is one finding on --dev and full; nested node_modules inside it is not a second walk target; --quick omits it; examples/foo/.tsx-cache and .tsbuildinfo are recorded; a HOME child dir with two git repos is walked without being listed in bundled work_roots.
 - vendor/ next to composer.json is emitted; vendor/paste/src with no composer.json is not; vendor/paste/target next to Cargo.toml is a rebuildable finding.
 - A node_modules dir with mtime 90 days ago has last_used set and why mentioning idle/untouched; a git-tracked `dist/` is keep; env without pyvenv.cfg is not a venv.
 
@@ -609,7 +611,7 @@ Add repo-root AGENTS.md: how agents run `freedisk help`, scan --json, --mode qui
 
 ### TASK-022: Agent-oriented help command
 
-internal/cli/help.go registers `help [command]` and a custom root help function so `freedisk help` and `freedisk --help` print the same long agent guide. The guide MUST include these copy-paste lines: `freedisk catalog add PATH --scans quick,dev`, `freedisk catalog unassign PATH --from quick`, `freedisk catalog disable PATH`, `freedisk scans list`, `freedisk scans disable artifacts`, `freedisk scans add rust --types artifacts,worktrees`, `freedisk scan --mode=rust --json`, `freedisk scan --dev --json`, `freedisk catalog add '/tmp/proj-*' --glob --scans dev`. Also: purpose (report-only); mode table; that --quick is NOT cargo-target-only; JSON-when-piped; that stale node_modules/vendor/target are listed (idle ≥ 30 days high-confidence, newer Ask first, user applies ids); that /tmp /var/tmp $TMPDIR are scanned by default (children only, never the root); apply rules (explicit ids, no --all, --yes off-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes 0/2/3. `help catalog` and `help scans` print those commands' Long text. Help must not call scan or apply.
+internal/cli/help.go registers `help [command]` and a custom root help function so `freedisk help` and `freedisk --help` print the same long agent guide. The guide MUST include these copy-paste lines: `freedisk catalog add PATH --scans quick,dev`, `freedisk catalog unassign PATH --from quick`, `freedisk catalog disable PATH`, `freedisk scans list`, `freedisk scans disable artifacts`, `freedisk scans add rust --types artifacts,worktrees`, `freedisk scan --mode=rust --json`, `freedisk scan --dev --json`, `freedisk catalog add '/tmp/proj-*' --glob --scans dev`. Also: purpose (report-only); that no overlay is required for a first scan; mode table; that --quick is NOT cargo-target-only; JSON-when-piped; that stale node_modules/vendor/target are listed (idle ≥ 30 days high-confidence, newer Ask first, user applies ids); that /tmp /var/tmp $TMPDIR are scanned by default (children only, never the root); apply rules (explicit ids, no --all, --yes off-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes 0/2/3. `help catalog` and `help scans` print those commands' Long text. Help must not call scan or apply.
 
 **Type:** feature  
 **Priority:** P1  
@@ -627,7 +629,7 @@ internal/cli/help.go registers `help [command]` and a custom root help function 
 
 **Acceptance Criteria:**
 
-- `help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `apply`, `never`, `node_modules`, `/tmp`, and `git-tracked` or `tracked`.
+- `help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `apply`, `never`, `node_modules`, `/tmp`, `overlay` or `starting`, and `git-tracked` or `tracked`.
 - `help catalog` mentions `--scans`, `--from`, and `--glob`; `help scans` mentions `disable` and `add --types`; `help scan` mentions quick, dev, full, node_modules or rebuildable, that --quick is not cargo-target-only, and that scan does not delete.
 - `help definitely-not-a-command` exits nonzero and does not invoke a scan.
 
@@ -657,7 +659,7 @@ Subcommand group that only edits overlay disable_scans and modes. Does not delet
 
 ### TASK-024: Add hgDB cleanup-space rows to bundled catalog
 
-Additive edit of catalog/macos-hotspots.yaml only — do not delete existing rows, do not add /tmp/hgdb-*, keep the bundled tmp: /tmp, /var/tmp, $TMPDIR. Add artifact names `.tsx-cache` and `.tsbuildinfo` (file). Split cargo: `~/.cargo/registry/cache` (safe-cache, reclaim cargo cache --autoclean), `~/.cargo/registry/src` (ask), keep `~/.cargo/git` as ask (not safe-cache). Keep thresholds.artifact_idle_days (30) and worktree_inflight_hours (24) if already present; add them if missing. Note on vendor: cargo-vendor source is keep; nested target/ is rebuildable. Reclaim for rust target remains cargo clean.
+Additive edit of catalog/macos-hotspots.yaml only — do not delete existing starting-point rows (tmp, language_homes, editors, generic work_roots, work_root_discover). Do not add /tmp/hgdb-* or ~/work_cip. keep the bundled tmp: /tmp, /var/tmp, $TMPDIR. Add artifact names `.tsx-cache` and `.tsbuildinfo` (file). Split cargo: `~/.cargo/registry/cache` (safe-cache, reclaim cargo cache --autoclean), `~/.cargo/registry/src` (ask), keep `~/.cargo/git` as ask (not safe-cache). Keep thresholds.artifact_idle_days (30) and worktree_inflight_hours (24) if already present; add them if missing. Note on vendor: cargo-vendor source is keep; nested target/ is rebuildable. Reclaim for rust target remains cargo clean.
 
 **Type:** chore  
 **Priority:** P1  
@@ -670,12 +672,12 @@ Additive edit of catalog/macos-hotspots.yaml only — do not delete existing row
 
 - `catalog/macos-hotspots.yaml`
 
-**validateCommand:** `python3 -c "from pathlib import Path; t=Path('catalog/macos-hotspots.yaml').read_text(); assert '.tsx-cache' in t and '.tsbuildinfo' in t and 'registry/cache' in t and 'worktree_inflight_hours' in t and 'artifact_idle_days' in t and 'tmp_idle_days' in t; assert 'path: \"/tmp\"' in t or 'path: /tmp' in t or '\"/tmp\"' in t; assert '/tmp/hgdb' not in t; i=t.find('~/.cargo/git'); assert i!=-1 and 'ask' in t[i:i+120]; assert '/opt/homebrew/share/android-commandlinetools' in t"`
+**validateCommand:** `python3 -c "from pathlib import Path; t=Path('catalog/macos-hotspots.yaml').read_text(); assert '.tsx-cache' in t and '.tsbuildinfo' in t and 'registry/cache' in t and 'worktree_inflight_hours' in t and 'artifact_idle_days' in t and 'tmp_idle_days' in t and 'work_root_discover' in t; assert 'path: \"/tmp\"' in t or '\"/tmp\"' in t; assert '/tmp/hgdb' not in t and 'work_cip' not in t and 'work_mumzworld' not in t; i=t.find('~/.cargo/git'); assert i!=-1 and 'ask' in t[i:i+120]; assert '/opt/homebrew/share/android-commandlinetools' in t"`
 
 **Acceptance Criteria:**
 
 - YAML contains `.tsx-cache`, `.tsbuildinfo`, `registry/cache`, `worktree_inflight_hours`, and `artifact_idle_days`.
-- `~/.cargo/git` risk is ask (not safe-cache); `/tmp` is present as a tmp root; `/tmp/hgdb` is not present.
+- `~/.cargo/git` risk is ask (not safe-cache); `/tmp` is present as a tmp root; `/tmp/hgdb` is not present; `work_cip` is not a bundled work_root.
 - Existing android homebrew SDK path row still present.
 
 ## Failure Modes

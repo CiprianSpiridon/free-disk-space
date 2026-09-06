@@ -27,18 +27,50 @@ home:
   - { path: "~/.Trash", category: trash, risk: safe-cache, reclaim: "rm -rf ~/.Trash/*" }
 
 work_roots:
-  # Depth-1 du of each existing root. Also used as artifact-walk roots.
+  # Generic defaults. Missing paths skip. Overlay can add more; not required
+  # for a useful scan — see work_root_discover for $HOME depth-1 project dirs.
   - { path: "~/work", category: work, risk: keep, walk_artifacts: true }
-  - { path: "~/work_cip", category: work, risk: keep, walk_artifacts: true }
-  - { path: "~/work_mumzworld", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/src", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/Projects", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/dev", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/code", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/GitHub", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/gitlab", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/repos", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/Developer", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/workspace", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/go", category: go-workspace, risk: rebuildable }
   - { path: "~/Desktop", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/Documents", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/Downloads", category: work, risk: keep, walk_artifacts: true }
+
+# If enabled, $HOME depth-1 directories that look like project containers
+# become extra artifact-walk roots (e.g. ~/work_acme without overlay).
+# Skip names already listed above or that are user-data / system.
+work_root_discover:
+  enabled: true
+  home_depth: 1
+  min_child_repos: 2
+  project_markers:
+    - .git
+    - package.json
+    - Cargo.toml
+    - go.mod
+    - composer.json
+    - Gemfile
+    - pyproject.toml
+    - Package.swift
+  skip_names:
+    - Library
+    - Applications
+    - Desktop
+    - Documents
+    - Downloads
+    - Movies
+    - Music
+    - Pictures
+    - Public
+    - go
 
 system_wide:
   - { path: "/Applications", category: apps, risk: keep, drill: true, glob_children: "*.app" }
@@ -128,6 +160,27 @@ node:
   - { path: "~/.pnpm-store", category: pnpm-store, risk: safe-cache }
   - { path: "~/.pnpm-state", category: pnpm, risk: keep }
 
+language_homes:
+  - { path: "~/.cache", category: user-cache, risk: ask, drill: true }
+  - { path: "~/.local", category: user-local, risk: ask, drill: true }
+  - { path: "~/.rbenv", category: rbenv, risk: unused-runtime, drill: true }
+  - { path: "~/.rvm", category: rvm, risk: unused-runtime, drill: true }
+  - { path: "~/.asdf", category: asdf, risk: unused-runtime, drill: true }
+  - { path: "~/.sdkman", category: sdkman, risk: unused-runtime, drill: true }
+  - { path: "~/.jenv", category: jenv, risk: unused-runtime }
+  - { path: "~/.fnm", category: fnm, risk: unused-runtime, drill: true }
+  - { path: "~/.volta", category: volta, risk: unused-runtime }
+  - { path: "~/.deno", category: deno, risk: ask }
+  - { path: "~/.mix", category: elixir-mix, risk: safe-cache }
+  - { path: "~/.hex", category: elixir-hex, risk: safe-cache }
+  - { path: "~/.stack", category: haskell-stack, risk: ask }
+  - { path: "~/.ghcup", category: haskell-ghcup, risk: unused-runtime }
+  - { path: "~/.cabal", category: haskell-cabal, risk: ask }
+  - { path: "~/.nuget", category: nuget, risk: safe-cache }
+  - { path: "~/.dotnet", category: dotnet, risk: ask }
+  - { path: "~/.nix-profile", category: nix, risk: ask }
+  - { path: "/nix/store", category: nix-store, risk: ask }
+
 python:
   - { path: "~/.cache/uv", category: uv-cache, risk: safe-cache, reclaim: "uv cache clean" }
   - { path: "~/.local/share/uv", category: uv-tools, risk: ask }
@@ -147,9 +200,11 @@ python:
   - { path: "~/.local/pipx", category: pipx, risk: ask }
 
 rust:
-  - { path: "~/.cargo", category: cargo, risk: ask, drill: true }
-  - { path: "~/.cargo/registry", category: cargo-registry, risk: safe-cache }
-  - { path: "~/.cargo/git", category: cargo-git, risk: safe-cache }
+  - { path: "~/.cargo", category: cargo, risk: keep, drill: true, note: "Never apply the whole ~/.cargo directory." }
+  - { path: "~/.cargo/registry/cache", category: cargo-registry-cache, risk: safe-cache, reclaim: "cargo cache --autoclean" }
+  - { path: "~/.cargo/registry/src", category: cargo-registry-src, risk: ask }
+  - { path: "~/.cargo/registry", category: cargo-registry, risk: ask }
+  - { path: "~/.cargo/git", category: cargo-git, risk: ask }
   - { path: "~/.rustup", category: rustup, risk: unused-runtime, drill: true }
   - { path: "~/.rustup/toolchains", category: rust-toolchains, risk: unused-runtime, drill: true }
 
@@ -179,6 +234,7 @@ agent_clis:
   - { path: "~/.grok/sessions", category: grok-sessions, risk: ask }
   - { path: "~/.codex", category: codex, risk: ask, drill: true }
   - { path: "~/.codex/sessions", category: codex-sessions, risk: ask }
+  - { path: "~/.codex/worktrees", category: codex-worktrees, risk: leftover-worktree, drill: true }
   - { path: "~/.claude", category: claude, risk: ask }
   - { path: "~/.claude/projects", category: claude-projects, risk: ask }
   - { path: "~/.cursor", category: cursor, risk: ask }
@@ -192,6 +248,22 @@ agent_clis:
   - { path: "~/Library/Caches/com.openai.codex", category: codex-cache, risk: ask }
   - { path: "~/Library/Caches/kache", category: kache, risk: ask, drill: true, note: "48G on this machine; confirm before treating as safe-cache." }
   - { path: "~/Library/Caches/kache/store", category: kache-store, risk: ask }
+
+editors:
+  - { path: "~/Library/Application Support/Cursor", category: cursor-app, risk: ask, drill: true }
+  - { path: "~/Library/Application Support/Code", category: vscode, risk: ask, drill: true }
+  - { path: "~/Library/Application Support/Windsurf", category: windsurf, risk: ask }
+  - { path: "~/Library/Caches/com.microsoft.VSCode", category: vscode-cache, risk: safe-cache }
+  - { path: "~/Library/Caches/JetBrains", category: jetbrains-cache, risk: safe-cache, drill: true }
+  - { path: "~/Library/Application Support/JetBrains", category: jetbrains, risk: ask, drill: true }
+  - { path: "~/.windsurf", category: windsurf, risk: ask }
+  - { path: "~/.continue", category: continue-dev, risk: ask }
+
+vms:
+  - { path: "~/Parallels", category: parallels, risk: ask }
+  - { path: "~/Library/Application Support/Parallels", category: parallels, risk: ask }
+  - { path: "~/VirtualBox VMs", category: virtualbox, risk: ask }
+  - { path: "~/Library/Containers/com.utmapp.UTM", category: utm, risk: ask, sparse: true }
 
 browser_runtimes:
   - { path: "~/Library/Caches/ms-playwright", category: playwright, risk: safe-cache }
@@ -210,6 +282,8 @@ artifacts:
   - { name: .output, ecosystem: nuxt, risk: rebuildable }
   - { name: .turbo, ecosystem: turbo, risk: safe-cache }
   - { name: .parcel-cache, ecosystem: parcel, risk: safe-cache }
+  - { name: .tsx-cache, ecosystem: tsx, risk: safe-cache }
+  - { name: .tsbuildinfo, ecosystem: tsc, risk: safe-cache, file: true }
   - { name: dist, ecosystem: js-build, risk: rebuildable, confirm: "not committed in git" }
   - { name: build, ecosystem: build, risk: rebuildable, confirm: "not an app source folder" }
   - { name: out, ecosystem: js-build, risk: rebuildable }

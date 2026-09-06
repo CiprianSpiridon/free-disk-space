@@ -16,7 +16,7 @@ plan = {
     "overview": (
         "Greenfield Go CLI (`freedisk`) that encodes RECIPE.md for agents: "
         "scan/report with modes quick|dev|full plus user-defined scan types, "
-        "a user-editable catalog overlay (add/unassign/disable via CLI), "
+        "a bundled catalog that is useful with zero overlay, optional catalog add, "
         "JSON-first output, a detailed `help` command, and apply only for "
         "explicit human-named finding ids. No TUI. No automatic deletes."
     ),
@@ -25,7 +25,8 @@ plan = {
         "decisions": [
             "CLI only; no TUI, no status dashboard, no app uninstaller.",
             "Primary users are agents (Claude Code, Codex, Grok, Cursor); humans get the same commands.",
-            "Catalog overlay via CLI: add paths, assign them to scan types, unassign from a type, or disable entirely — no YAML editing required.",
+            "Bundled catalog is the starting point (caches, SDKs, tmp, Desktop/Downloads, generic work roots, home project-dir discovery). Overlay is optional.",
+            "Catalog overlay via CLI: add/unassign/disable paths if yours are unusual — no YAML editing required, not required for a first scan.",
             "Scan types are first-class: built-in quick|dev|full, disable/enable a phase (artifacts, worktrees, drill, …), add/remove a named user scan.",
             "Scan modes: --quick (volume + known paths), --dev (volume + leftover worktrees + project artifacts + catalog paths tagged dev), full default (all enabled phases).",
             "`freedisk help` documents catalog, scans, modes, JSON, and never-delete rules with copy-paste examples.",
@@ -48,7 +49,7 @@ plan = {
         "macOS host with Go 1.22+ on PATH for implementers (binary itself calls diskutil/du; no sudo).",
         "Treat RECIPE.md as scan-order contract; do not invent a different pipeline.",
         "Emit findings matching findings.schema.json (allocated bytes, risk enum, reclaim.cmd never executed by scan).",
-        "Load catalog/macos-hotspots.yaml as the bundled list; missing paths skip, never fail the scan.",
+        "Load catalog/macos-hotspots.yaml as the bundled list; missing paths skip, never fail the scan. Zero overlay must still produce a useful report.",
         "No delete on scan/why/catalog/scans/help. apply is the only mutate path.",
     ],
     "nonGoals": [
@@ -64,6 +65,7 @@ plan = {
         "User-authored Go plugins for new scan engines in v1 — user scans compose existing types plus extra catalog paths.",
         "A mutating clone of hgDB cleanup-space.sh (that script deletes by default). Scan never deletes; shared ~/.cargo is never implied by a project artifact apply.",
         "Project-specific /tmp/hgdb-* glob in the bundled catalog; generic /tmp /var/tmp $TMPDIR are included by default.",
+        "Machine-specific work roots (e.g. ~/work_cip) in the bundled YAML; those are discovered at $HOME depth-1 or added via overlay.",
     ],
     "contracts": [
         {
@@ -96,10 +98,12 @@ plan = {
                 "unassign[] removes a path from listed modes only. "
                 "disable_scans[] skips named phases even in full. "
                 "modes.<name>.types lists phases for `scan --mode=<name>`. "
-                "work_roots[] appends artifact-walk roots. Bundled known paths default to scans [quick,full]; "
+                "A missing overlay file is a complete scan from the bundled catalog plus work_root_discover — overlay is optional. "
+                "work_roots[] in overlay appends artifact-walk roots. Bundled known paths default to scans [quick,full]; "
                 "bundled work_roots default to [dev,full]. "
+                "work_root_discover (enabled): $HOME depth-1 dirs with project markers or ≥ min_child_repos git children become extra walk roots. "
                 "glob:true path entries expand; zero matches skip (not an error). "
-                "catalog add PATH --glob writes glob:true (for /tmp/proj-* scratch, examples/*/target, …)."
+                "catalog add PATH --glob writes glob:true for extra patterns only."
             ),
         },
         {
@@ -168,7 +172,7 @@ plan = {
             "name": "Agent help",
             "detail": (
                 "`freedisk help` and `--help` print the same long usage: purpose (report-only); "
-                "mode table (and that --quick is NOT cargo-target-only); catalog add/unassign/disable/--glob; "
+                "that a first scan needs no overlay; mode table (and that --quick is NOT cargo-target-only); catalog add/unassign/disable/--glob; "
                 "scans list/disable/enable/add/remove; JSON-when-piped; apply rules "
                 "(explicit ids, no --all, --yes on non-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); "
                 "exit codes (0 report, 2 usage, 3 unknown id); copy-paste examples for catalog and scans. "
@@ -275,7 +279,7 @@ plan["tasks"] = [
             "Read the existing catalog/macos-hotspots.yaml. Resolve search order: --catalog / FREEDISK_CATALOG / "
             "path relative to module root `catalog/macos-hotspots.yaml`. Expand `~`. Skip missing listed paths later; "
             "a missing catalog FILE is a hard error naming every path tried. Parse thresholds, path groups, "
-            "artifacts (including file markers), glob:true, worktree_idle_days, worktree_inflight_hours (default 24 if absent), "
+            "artifacts (including file markers), glob:true, work_root_discover, worktree_idle_days, worktree_inflight_hours (default 24 if absent), "
             "artifact_idle_days (default 30 if absent), tmp_idle_days (default 7 if absent). "
             "Expand $TMPDIR (and other $ENV in path) the same way as ~."
         ),
@@ -287,7 +291,7 @@ plan["tasks"] = [
         labels=["catalog"],
         filesToCreate=["internal/catalog/load.go", "internal/catalog/load_test.go"],
         acceptanceCriteria=[
-            "Loading the repo's catalog/macos-hotspots.yaml returns at least the android homebrew SDK path `/opt/homebrew/share/android-commandlinetools`.",
+            "Loading the repo's catalog/macos-hotspots.yaml returns at least the android homebrew SDK path `/opt/homebrew/share/android-commandlinetools`, `/tmp`, and work_root_discover.enabled true.",
             "Load of a nonexistent file returns an error that includes that path; a glob:true entry with zero matches is not a load error (empty expansion).",
             "Does not follow a symlink catalog file into `/System` as success if we refuse symlink catalogs — or documents and tests that catalog file may be a regular file only.",
         ],
@@ -541,7 +545,9 @@ plan["tasks"] = [
         id="TASK-014",
         title="Artifact walk (node_modules, target, pyvenv.cfg, vendor)",
         description=(
-            "Phase with Quick=false, Dev=true: pruned walk of merged work_roots. Record catalog artifact dirs AND files "
+            "Phase with Quick=false, Dev=true: pruned walk of merged work_roots plus work_root_discover hits "
+            "(HOME depth-1 project containers; skip Library/Applications/media; skip names already in work_roots). "
+            "Record catalog artifact dirs AND files "
             "(.tsbuildinfo, .tsx-cache, .next, dist, node_modules, target). "
             "target/ only next to Cargo.toml, including examples/*/target, sdks/*/target, vendor/<crate>/target. "
             "vendor/ itself only if parent has composer.json — cargo-vendor and Rails/Go vendor are keep (source). "
@@ -560,7 +566,7 @@ plan["tasks"] = [
         labels=["scan", "artifacts"],
         filesToCreate=["internal/scan/artifacts.go", "internal/scan/artifacts_test.go"],
         acceptanceCriteria=[
-            "Testdata app/node_modules is one finding on --dev and full; nested node_modules inside it is not a second walk target; --quick omits it; examples/foo/.tsx-cache and .tsbuildinfo are recorded.",
+            "Testdata app/node_modules is one finding on --dev and full; nested node_modules inside it is not a second walk target; --quick omits it; examples/foo/.tsx-cache and .tsbuildinfo are recorded; a HOME child dir with two git repos is walked without being listed in bundled work_roots.",
             "vendor/ next to composer.json is emitted; vendor/paste/src with no composer.json is not; vendor/paste/target next to Cargo.toml is a rebuildable finding.",
             "A node_modules dir with mtime 90 days ago has last_used set and why mentioning idle/untouched; a git-tracked `dist/` is keep; env without pyvenv.cfg is not a venv.",
         ],
@@ -750,7 +756,7 @@ plan["tasks"] = [
             "`freedisk scan --mode=rust --json`, "
             "`freedisk scan --dev --json`, "
             "`freedisk catalog add '/tmp/proj-*' --glob --scans dev`. "
-            "Also: purpose (report-only); mode table; that --quick is NOT cargo-target-only; "
+            "Also: purpose (report-only); that no overlay is required for a first scan; mode table; that --quick is NOT cargo-target-only; "
             "JSON-when-piped; that stale node_modules/vendor/target are listed (idle ≥ 30 days high-confidence, newer Ask first, user applies ids); "
             "that /tmp /var/tmp $TMPDIR are scanned by default (children only, never the root); "
             "apply rules (explicit ids, no --all, --yes off-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); "
@@ -764,7 +770,7 @@ plan["tasks"] = [
         labels=["cli", "help", "agents"],
         filesToCreate=["internal/cli/help.go", "internal/cli/help_test.go"],
         acceptanceCriteria=[
-            "`help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `apply`, `never`, `node_modules`, `/tmp`, and `git-tracked` or `tracked`.",
+            "`help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `apply`, `never`, `node_modules`, `/tmp`, `overlay` or `starting`, and `git-tracked` or `tracked`.",
             "`help catalog` mentions `--scans`, `--from`, and `--glob`; `help scans` mentions `disable` and `add --types`; `help scan` mentions quick, dev, full, node_modules or rebuildable, that --quick is not cargo-target-only, and that scan does not delete.",
             "`help definitely-not-a-command` exits nonzero and does not invoke a scan.",
         ],
@@ -800,7 +806,8 @@ plan["tasks"] = [
         id="TASK-024",
         title="Add hgDB cleanup-space rows to bundled catalog",
         description=(
-            "Additive edit of catalog/macos-hotspots.yaml only — do not delete existing rows, do not add /tmp/hgdb-*, "
+            "Additive edit of catalog/macos-hotspots.yaml only — do not delete existing starting-point rows "
+            "(tmp, language_homes, editors, generic work_roots, work_root_discover). Do not add /tmp/hgdb-* or ~/work_cip. "
             "keep the bundled tmp: /tmp, /var/tmp, $TMPDIR. "
             "Add artifact names `.tsx-cache` and `.tsbuildinfo` (file). "
             "Split cargo: `~/.cargo/registry/cache` (safe-cache, reclaim cargo cache --autoclean), "
@@ -818,10 +825,10 @@ plan["tasks"] = [
         filesToModify=["catalog/macos-hotspots.yaml"],
         acceptanceCriteria=[
             "YAML contains `.tsx-cache`, `.tsbuildinfo`, `registry/cache`, `worktree_inflight_hours`, and `artifact_idle_days`.",
-            "`~/.cargo/git` risk is ask (not safe-cache); `/tmp` is present as a tmp root; `/tmp/hgdb` is not present.",
+            "`~/.cargo/git` risk is ask (not safe-cache); `/tmp` is present as a tmp root; `/tmp/hgdb` is not present; `work_cip` is not a bundled work_root.",
             "Existing android homebrew SDK path row still present.",
         ],
-        validateCommand="python3 -c \"from pathlib import Path; t=Path('catalog/macos-hotspots.yaml').read_text(); assert '.tsx-cache' in t and '.tsbuildinfo' in t and 'registry/cache' in t and 'worktree_inflight_hours' in t and 'artifact_idle_days' in t and 'tmp_idle_days' in t; assert 'path: \\\"/tmp\\\"' in t or 'path: /tmp' in t or '\\\"/tmp\\\"' in t; assert '/tmp/hgdb' not in t; i=t.find('~/.cargo/git'); assert i!=-1 and 'ask' in t[i:i+120]; assert '/opt/homebrew/share/android-commandlinetools' in t\"",
+        validateCommand="python3 -c \"from pathlib import Path; t=Path('catalog/macos-hotspots.yaml').read_text(); assert '.tsx-cache' in t and '.tsbuildinfo' in t and 'registry/cache' in t and 'worktree_inflight_hours' in t and 'artifact_idle_days' in t and 'tmp_idle_days' in t and 'work_root_discover' in t; assert 'path: \\\"/tmp\\\"' in t or '\\\"/tmp\\\"' in t; assert '/tmp/hgdb' not in t and 'work_cip' not in t and 'work_mumzworld' not in t; i=t.find('~/.cargo/git'); assert i!=-1 and 'ask' in t[i:i+120]; assert '/opt/homebrew/share/android-commandlinetools' in t\"",
     ),
 ]
 

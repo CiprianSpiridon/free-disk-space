@@ -116,6 +116,7 @@ Thresholds (from the YAML; change there, not here):
 - list individual artifact dirs if ≥ 5 MiB
 - leftover-worktree if dir mtime ≥ 14 days (configurable)
 - rebuildable artifacts (`node_modules`, Composer `vendor`, `target`, `.next`, venvs, …) always listed if ≥ 5 MiB; **untouched ≥ 30 days** (configurable `artifact_idle_days`) go in Reclaimable (high confidence) because they regenerate with install/build; **newer** ones go in Ask first. The human still picks ids — nothing is deleted automatically. Git-tracked paths stay keep.
+- **tmp by default:** `/tmp`, `/var/tmp`, `$TMPDIR` (macOS per-user `/var/folders/…/T`). Size them in phase 1; always depth-1 children. **Never delete the tmp root.** Children ≥ 5 MiB are listed; idle ≥ 7 days (`tmp_idle_days`) go in Reclaimable (high confidence), newer in Ask first. Deduplicate `/tmp` → `/private/tmp`. EPERM children → `unreadable`.
 
 ---
 
@@ -145,7 +146,9 @@ For every `path` in `catalog/macos-hotspots.yaml` that exists, `du -sk`.
 Do not walk unknown trees yet.
 
 This phase is where Docker, Grok, Codex, npm, Xcode, Homebrew Android
-SDK, uv, pnpm usually show up.
+SDK, uv, pnpm, and tmp roots (`/tmp`, `/var/tmp`, `$TMPDIR`) usually show up.
+Tmp roots with `always_drill` also emit depth-1 children here (do not wait
+for the 1 GiB drill phase).
 
 ### Phase 2 — Depth-1 of big roots
 
@@ -391,6 +394,7 @@ agent homes: ~/.grok ~/.codex ~/.claude ~/.ulpi ~/.cursor
 language homes: ~/.npm ~/.nvm ~/.bun ~/.cargo ~/.rustup ~/.cache ~/.local
 Android SDK homes (Studio + Homebrew share path)
 Xcode DeviceSupport + CoreSimulator (user + system)
+/tmp  /var/tmp  $TMPDIR            # children only; never the root
 ```
 
 `~/Library/Preferences` is usually tiny; if it is gigabytes, drill with

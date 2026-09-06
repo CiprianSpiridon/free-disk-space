@@ -52,6 +52,14 @@ system_wide:
   - { path: "/Library/Developer/CoreSimulator/Volumes", category: simulator-runtimes, risk: unused-runtime }
   - { path: "/Library/Developer/CommandLineTools", category: xcode-clt, risk: keep }
 
+# Unix + macOS temp. Never reclaim the directory itself — only children.
+# /tmp is a symlink to /private/tmp on macOS; size /tmp once (dedupe realpath).
+# $TMPDIR is the per-user temp (usually /var/folders/.../T) and is often the large one.
+tmp:
+  - { path: "/tmp", category: tmp, risk: keep, drill: true, always_drill: true, scans: [quick, dev, full], note: "Never delete /tmp. Drill children. Idle >= tmp_idle_days is high-confidence ask." }
+  - { path: "/var/tmp", category: tmp, risk: keep, drill: true, always_drill: true, scans: [quick, dev, full], note: "Persists across reboot. Never delete /var/tmp." }
+  - { path: "$TMPDIR", category: tmp-user, risk: keep, drill: true, always_drill: true, scans: [quick, dev, full], note: "Expand TMPDIR; skip if it realpath-equals /tmp." }
+
 library:
   - { path: "~/Library/Containers", category: containers, risk: ask, drill: true }
   - { path: "~/Library/Caches", category: caches, risk: ask, drill: true }
@@ -291,6 +299,7 @@ thresholds:
   report_bytes: 52428800           # 50 MiB — mention in human report
   artifact_list_min_bytes: 5242880 # 5 MiB — list individual artifact dirs
   artifact_idle_days: 30           # rebuildable node_modules/vendor/target/.next: high-confidence if mtime older; still listed if newer (Ask first). User decides via apply.
+  tmp_idle_days: 7                 # /tmp, /var/tmp, $TMPDIR children: high-confidence if mtime older; newer still listed (Ask first). Never delete the tmp root.
   worktree_idle_days: 14           # leftover-worktree if mtime older
   worktree_inflight_hours: 24      # fresh agent worktrees are not leftover
   max_walk_depth: 8

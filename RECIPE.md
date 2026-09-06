@@ -115,6 +115,7 @@ Thresholds (from the YAML; change there, not here):
 - mention in human report if ≥ 50 MiB
 - list individual artifact dirs if ≥ 5 MiB
 - leftover-worktree if dir mtime ≥ 14 days (configurable)
+- rebuildable artifacts (`node_modules`, Composer `vendor`, `target`, `.next`, venvs, …) always listed if ≥ 5 MiB; **untouched ≥ 30 days** (configurable `artifact_idle_days`) go in Reclaimable (high confidence) because they regenerate with install/build; **newer** ones go in Ask first. The human still picks ids — nothing is deleted automatically. Git-tracked paths stay keep.
 
 ---
 

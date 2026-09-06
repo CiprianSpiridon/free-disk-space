@@ -290,7 +290,9 @@ thresholds:
   drill_bytes: 1073741824          # 1 GiB — depth-1 into children
   report_bytes: 52428800           # 50 MiB — mention in human report
   artifact_list_min_bytes: 5242880 # 5 MiB — list individual artifact dirs
+  artifact_idle_days: 30           # rebuildable node_modules/vendor/target/.next: high-confidence if mtime older; still listed if newer (Ask first). User decides via apply.
   worktree_idle_days: 14           # leftover-worktree if mtime older
+  worktree_inflight_hours: 24      # fresh agent worktrees are not leftover
   max_walk_depth: 8
   skip_system_prefixes:
     - /System

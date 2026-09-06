@@ -30,6 +30,7 @@ plan = {
             "Scan modes: --quick (volume + known paths), --dev (volume + leftover worktrees + project artifacts + catalog paths tagged dev), full default (all enabled phases).",
             "`freedisk help` documents catalog, scans, modes, JSON, and never-delete rules with copy-paste examples.",
             "Deletes never automatic. apply requires explicit ids + --yes when stdout is not a TTY.",
+            "Stale rebuildable artifacts (node_modules, Composer vendor, target, .next, venvs) are listed; idle ≥ artifact_idle_days (30) is high-confidence reclaimable, newer is Ask first. User applies ids.",
             "Encode learnings from hgDB scripts/cleanup-space.sh (external): git-tracked keep, nested Cargo target/, rust vendor is source, in-flight worktrees, shared ~/.cargo opt-in.",
             "Default review posture: none.",
         ],
@@ -133,6 +134,16 @@ plan = {
                 "(7) Prefer cargo cache --autoclean when cargo-cache exists; otherwise report ~/.cargo/registry/cache, registry/src, git as separate findings (git = ask). "
                 "(8) freedisk --quick is volume+known paths, NOT this script's --quick (tier-1 target/ only). Help must say so. "
                 "(9) Dry-run is scan. apply prints size. rm uses -- so names starting with - are not flags."
+            ),
+        },
+        {
+            "name": "Stale rebuildable artifacts",
+            "detail": (
+                "node_modules, Composer vendor, Rust target/, .next, dist (untracked), venvs, .tsx-cache, .tsbuildinfo "
+                "are rebuildable and must appear in --dev/full when ≥ artifact_list_min_bytes. "
+                "Set last_used from directory (or file) mtime. why must mention idle days when older than artifact_idle_days (default 30). "
+                "Markdown: idle rebuildable under Reclaimable (high confidence); rebuildable newer than the threshold under Ask first. "
+                "Risk stays rebuildable (not leftover-worktree). Git-tracked paths stay keep. apply still requires explicit human ids."
             ),
         },
         {
@@ -253,7 +264,8 @@ plan["tasks"] = [
             "Read the existing catalog/macos-hotspots.yaml. Resolve search order: --catalog / FREEDISK_CATALOG / "
             "path relative to module root `catalog/macos-hotspots.yaml`. Expand `~`. Skip missing listed paths later; "
             "a missing catalog FILE is a hard error naming every path tried. Parse thresholds, path groups, "
-            "artifacts (including file markers), glob:true, worktree_idle_days, worktree_inflight_hours (default 24 if absent)."
+            "artifacts (including file markers), glob:true, worktree_idle_days, worktree_inflight_hours (default 24 if absent), "
+            "artifact_idle_days (default 30 if absent)."
         ),
         type="feature",
         priority="P0",
@@ -439,7 +451,9 @@ plan["tasks"] = [
         title="Markdown report (RECIPE §11)",
         description=(
             "Human report with Disk, Reclaimable, Ask first, Keep, Not present. "
-            "risk keep/never excluded from Reclaimable table. not_present rendered even when empty as a line."
+            "risk keep/never excluded from Reclaimable table. "
+            "rebuildable with last_used older than artifact_idle_days belongs in Reclaimable (high confidence); "
+            "newer rebuildable belongs in Ask first. not_present rendered even when empty as a line."
         ),
         type="feature",
         priority="P1",
@@ -450,7 +464,7 @@ plan["tasks"] = [
         filesToCreate=["internal/report/markdown.go", "internal/report/markdown_test.go"],
         acceptanceCriteria=[
             "Report with not_present [\"conda\"] contains a Not present section mentioning conda.",
-            "A keep-risk finding does not appear under Reclaimable.",
+            "A keep-risk finding does not appear under Reclaimable; a rebuildable finding with last_used 90 days ago does; one last_used yesterday appears under Ask first.",
             "Markdown includes container in_use/free from Volume.",
         ],
         validateCommand="go test ./internal/report/ -count=1 -run Markdown",
@@ -517,6 +531,8 @@ plan["tasks"] = [
             "Do not prune all vendor/: prune Composer vendor; walk cargo-vendor to find nested target/. "
             "Skip any path `git ls-files` tracks (proptest-regressions/, committed dist). "
             "Prune into node_modules and recorded target/. Artifact-named dir is not a project container. "
+            "Set last_used from mtime. If idle ≥ artifact_idle_days, why includes untouched N days; risk stays rebuildable. "
+            "Still emit recently touched rebuildable artifacts (user decides via apply). "
             "Reclaim for target: `cargo clean` in the parent tree. Participates in --dev and full, not --quick."
         ),
         type="feature",
@@ -529,7 +545,7 @@ plan["tasks"] = [
         acceptanceCriteria=[
             "Testdata app/node_modules is one finding on --dev and full; nested node_modules inside it is not a second walk target; --quick omits it; examples/foo/.tsx-cache and .tsbuildinfo are recorded.",
             "vendor/ next to composer.json is emitted; vendor/paste/src with no composer.json is not; vendor/paste/target next to Cargo.toml is a rebuildable finding.",
-            "Directory named env without pyvenv.cfg is not a venv; a git-tracked `dist/` in testdata repo is risk keep (not rebuildable).",
+            "A node_modules dir with mtime 90 days ago has last_used set and why mentioning idle/untouched; a git-tracked `dist/` is keep; env without pyvenv.cfg is not a venv.",
         ],
         validateCommand="go test ./internal/scan/ -count=1 -run Artifact",
     ),
@@ -718,7 +734,8 @@ plan["tasks"] = [
             "`freedisk scan --dev --json`, "
             "`freedisk catalog add '/tmp/proj-*' --glob --scans dev`. "
             "Also: purpose (report-only); mode table; that --quick is NOT cargo-target-only; "
-            "JSON-when-piped; apply rules (explicit ids, no --all, --yes off-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); "
+            "JSON-when-piped; that stale node_modules/vendor/target are listed (idle ≥ 30 days high-confidence, newer Ask first, user applies ids); "
+            "apply rules (explicit ids, no --all, --yes off-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); "
             "exit codes 0/2/3. `help catalog` and `help scans` print those commands' Long text. Help must not call scan or apply."
         ),
         type="feature",
@@ -729,8 +746,8 @@ plan["tasks"] = [
         labels=["cli", "help", "agents"],
         filesToCreate=["internal/cli/help.go", "internal/cli/help_test.go"],
         acceptanceCriteria=[
-            "`help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `apply`, `never`, and `git-tracked` or `tracked`.",
-            "`help catalog` mentions `--scans`, `--from`, and `--glob`; `help scans` mentions `disable` and `add --types`; `help scan` mentions quick, dev, full, that --quick is not cargo-target-only, and that scan does not delete.",
+            "`help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `apply`, `never`, `node_modules`, and `git-tracked` or `tracked`.",
+            "`help catalog` mentions `--scans`, `--from`, and `--glob`; `help scans` mentions `disable` and `add --types`; `help scan` mentions quick, dev, full, node_modules or rebuildable, that --quick is not cargo-target-only, and that scan does not delete.",
             "`help definitely-not-a-command` exits nonzero and does not invoke a scan.",
         ],
         validateCommand="go test ./internal/cli/ -count=1 -run Help",
@@ -769,7 +786,7 @@ plan["tasks"] = [
             "Add artifact names `.tsx-cache` and `.tsbuildinfo` (file). "
             "Split cargo: `~/.cargo/registry/cache` (safe-cache, reclaim cargo cache --autoclean), "
             "`~/.cargo/registry/src` (ask), keep `~/.cargo/git` as ask (not safe-cache). "
-            "Add thresholds.worktree_inflight_hours: 24. "
+            "Keep thresholds.artifact_idle_days (30) and worktree_inflight_hours (24) if already present; add them if missing. "
             "Note on vendor: cargo-vendor source is keep; nested target/ is rebuildable. "
             "Reclaim for rust target remains cargo clean."
         ),
@@ -781,11 +798,11 @@ plan["tasks"] = [
         labels=["catalog", "hgdb"],
         filesToModify=["catalog/macos-hotspots.yaml"],
         acceptanceCriteria=[
-            "YAML contains `.tsx-cache`, `.tsbuildinfo`, `registry/cache`, and `worktree_inflight_hours`.",
+            "YAML contains `.tsx-cache`, `.tsbuildinfo`, `registry/cache`, `worktree_inflight_hours`, and `artifact_idle_days`.",
             "`~/.cargo/git` risk is ask (not safe-cache); `/tmp/hgdb` is not present.",
             "Existing android homebrew SDK path row still present.",
         ],
-        validateCommand="python3 -c \"from pathlib import Path; t=Path('catalog/macos-hotspots.yaml').read_text(); assert '.tsx-cache' in t and '.tsbuildinfo' in t and 'registry/cache' in t and 'worktree_inflight_hours' in t; assert '/tmp/hgdb' not in t; i=t.find('~/.cargo/git'); assert i!=-1 and 'ask' in t[i:i+120]; assert '/opt/homebrew/share/android-commandlinetools' in t\"",
+        validateCommand="python3 -c \"from pathlib import Path; t=Path('catalog/macos-hotspots.yaml').read_text(); assert '.tsx-cache' in t and '.tsbuildinfo' in t and 'registry/cache' in t and 'worktree_inflight_hours' in t and 'artifact_idle_days' in t; assert '/tmp/hgdb' not in t; i=t.find('~/.cargo/git'); assert i!=-1 and 'ask' in t[i:i+120]; assert '/opt/homebrew/share/android-commandlinetools' in t\"",
     ),
 ]
 

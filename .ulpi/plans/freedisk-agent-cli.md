@@ -2,7 +2,7 @@
 
 ## Overview
 
-Greenfield Go CLI (`freedisk`) that encodes RECIPE.md for agents: scan/report with modes quick|dev|full plus user-defined scan types, a bundled catalog that is useful with zero overlay, optional catalog add, JSON-first output, a detailed `help` command, and apply only for explicit human-named finding ids. No TUI. No automatic deletes.
+Greenfield Go CLI (`freedisk`) that encodes RECIPE.md for agents: scan/report with modes quick|dev|full plus user-defined scan types, a bundled catalog that is useful with zero overlay, optional catalog add, JSON-first output, a detailed `help` command, and delete only for explicit human-named finding ids. No TUI. No automatic deletes.
 
 ## Scope Challenge
 
@@ -18,8 +18,8 @@ Repo is research-only today: RECIPE.md, catalog/macos-hotspots.yaml, findings.sc
 - Scan types are first-class: built-in quick|dev|full, disable/enable a phase (artifacts, worktrees, drill, …), add/remove a named user scan.
 - Scan modes: --quick (volume + known paths), --dev (volume + leftover worktrees + project artifacts + catalog paths tagged dev), full default (all enabled phases).
 - `freedisk help` documents catalog, scans, modes, JSON, and never-delete rules with copy-paste examples.
-- Deletes never automatic. apply requires explicit ids + --yes when stdout is not a TTY.
-- Stale rebuildable artifacts (node_modules, Composer vendor, target, .next, venvs) are listed; idle ≥ artifact_idle_days (30) is high-confidence reclaimable, newer is Ask first. User applies ids.
+- Deletes never automatic. delete requires explicit ids + --yes when stdout is not a TTY.
+- Stale rebuildable artifacts (node_modules, Composer vendor, target, .next, venvs) are listed; idle ≥ artifact_idle_days (30) is high-confidence reclaimable, newer is Ask first. User runs delete with those ids.
 - /tmp, /var/tmp, and $TMPDIR are scanned by default; never delete those roots; idle children ≥ tmp_idle_days (7) are high-confidence.
 - Encode learnings from hgDB scripts/cleanup-space.sh (external): git-tracked keep, nested Cargo target/, rust vendor is source, in-flight worktrees, shared ~/.cargo opt-in.
 - Default review posture: none.
@@ -30,21 +30,21 @@ Repo is research-only today: RECIPE.md, catalog/macos-hotspots.yaml, findings.sc
 - Treat RECIPE.md as scan-order contract; do not invent a different pipeline.
 - Emit findings matching findings.schema.json (allocated bytes, risk enum, reclaim.cmd never executed by scan).
 - Load catalog/macos-hotspots.yaml as the bundled list; missing paths skip, never fail the scan. Zero overlay must still produce a useful report.
-- No delete on scan/why/catalog/scans/help. apply is the only mutate path.
+- No delete on scan/why/catalog/scans/help. delete is the only mutate path.
 
 ## Non-Goals
 
 - TUI / Bubble Tea / mo analyze clone.
 - mo status live dashboard, optimize (DNS/Spotlight), app uninstall.
 - Linux or Windows in v1.
-- Automatic or --all deletes; agent-initiated apply without the human naming ids.
+- Automatic or --all deletes; agent-initiated delete without the human naming ids.
 - Homebrew/npm publish, background daemon, telemetry.
 - Copying Mole GPL-3 source.
 - go install embed of the YAML (v1 loads catalog file / --catalog / FREEDISK_CATALOG).
 - Operation history log (RECIPE optional; cut).
 - Separate worktrees/artifacts/simulators/caches top-level report commands; use `scan --mode=dev` / `scans disable TYPE` instead.
 - User-authored Go plugins for new scan engines in v1 — user scans compose existing types plus extra catalog paths.
-- A mutating clone of hgDB cleanup-space.sh (that script deletes by default). Scan never deletes; shared ~/.cargo is never implied by a project artifact apply.
+- A mutating clone of hgDB cleanup-space.sh (that script deletes by default). Scan never deletes; shared ~/.cargo is never implied by a project artifact delete.
 - Project-specific /tmp/hgdb-* glob in the bundled catalog; generic /tmp /var/tmp $TMPDIR are included by default.
 - Machine-specific work roots (e.g. ~/work_cip) in the bundled YAML; those are discovered at $HOME depth-1 or added via overlay.
 
@@ -52,7 +52,7 @@ Repo is research-only today: RECIPE.md, catalog/macos-hotspots.yaml, findings.sc
 
 ### Public CLI
 
-freedisk [--json] [--catalog PATH] [--config DIR] <scan|why|catalog|scans|apply|help>. Non-TTY stdout defaults to JSON; TTY defaults to markdown unless --json. scan --mode=NAME (default full). Aliases: --quick, --dev. Built-in names: quick, dev, full. quick = volume + catalog paths tagged quick. dev = volume + worktrees + artifacts + catalog paths tagged dev. full = all enabled phases. User modes from `scans add`. catalog add|disable|unassign|list|path edits ~/.config/freedisk/catalog.yaml (or --config). scans list|disable|enable|add|remove edits which types run; does not delete disk data. apply <id>... requires ids; rejects --all; without --yes and not a TTY, exit 2 and delete nothing. `freedisk help` and `help <command>` print agent-oriented usage; unknown help topic exits nonzero.
+freedisk [--json] [--catalog PATH] [--config DIR] <scan|why|catalog|scans|delete|help>. Non-TTY stdout defaults to JSON; TTY defaults to markdown unless --json. scan --mode=NAME (default full). Aliases: --quick, --dev. Built-in names: quick, dev, full. quick = volume + catalog paths tagged quick. dev = volume + worktrees + artifacts + catalog paths tagged dev. full = all enabled phases. User modes from `scans add`. catalog add|disable|unassign|list|path edits ~/.config/freedisk/catalog.yaml (or --config). scans list|disable|enable|add|remove edits which types run; does not delete disk data. delete <id>... requires ids; rejects --all; without --yes and not a TTY, exit 2 and delete nothing. `freedisk help` and `help <command>` print agent-oriented usage; unknown help topic exits nonzero.
 
 ### Findings JSON
 
@@ -68,27 +68,27 @@ internal/scan.Register(Phase) so later phases do not edit run.go. Each phase has
 
 ### Deletion sink
 
-internal/apply is the only package that may delete. Path policy from internal/policy. Last scan ids from internal/scan persist file. No second matcher. Prefer reclaim.cmd owner commands (cargo clean, cargo cache --autoclean, git worktree prune/remove, npm/pnpm/uv prune) over rm. Refuse git-tracked paths, risk keep/never, in-flight worktrees (< worktree_inflight_hours), and deleting all of ~/.cargo. Print allocated size then delete (hgDB script pattern). Delete failure: nonzero, stop that id, do not continue as success.
+internal/reclaim is the only package that may delete. Path policy from internal/policy. Last scan ids from internal/scan persist file. No second matcher. Prefer reclaim.cmd owner commands (cargo clean, cargo cache --autoclean, git worktree prune/remove, npm/pnpm/uv prune) over rm. Refuse git-tracked paths, risk keep/never, in-flight worktrees (< worktree_inflight_hours), and deleting all of ~/.cargo. Print allocated size then delete (hgDB script pattern). Delete failure: nonzero, stop that id, do not continue as success.
 
 ### hgDB cleanup-space.sh learnings
 
-External script /Users/ciprian/work_cip/holly_grail/hgDB/scripts/cleanup-space.sh. Encode the rules, do not copy the mutator. (1) Project artifacts vs shared caches: target/node_modules/.next/dist are rebuildable in-repo; ~/.cargo/registry and ~/.cargo/git affect every Rust project — risk ask, only as their own finding ids, never as a side effect of cleaning a repo. (2) Cargo target/ is often the largest reclaimable (hundreds of GB on a hot tree, and the expensive part of agent worktrees). Find target/ next to Cargo.toml at repo root, examples/*/target, sdks/*/target, and vendor/<crate>/target. Reclaim cmd: cargo clean in that tree. (3) rust vendor/ is SOURCE (vendor/paste/src). Do not classify cargo-vendor or Rails/Go vendor as Composer. Do not prune all vendor/ on the walk — only prune Composer vendor (parent composer.json); still record nested target/. Never propose deleting proptest-regressions/ or any git-tracked path. (4) JS extras beyond node_modules: .next, dist, .tsbuildinfo (file), .tsx-cache; also under examples/*/ and sdks/*/. (5) Worktrees: never rm -rf .claude/worktrees. Only leftover-worktree if git worktree list says prunable/gone AND older than worktree_inflight_hours (24), or dir mtime older than worktree_idle_days (14). Fresh agent checkouts are ask/keep. Reclaim: git worktree prune --expire 1.day or git worktree remove <path>. (6) Scan /tmp, /var/tmp, and $TMPDIR by default (always depth-1 children). Never delete those roots. Idle children ≥ tmp_idle_days (7) are high-confidence; newer still listed (Ask first). Do not add /tmp/hgdb-* as a special glob — it shows up as a child of /tmp. catalog add --glob remains for extra patterns. (7) Prefer cargo cache --autoclean when cargo-cache exists; otherwise report ~/.cargo/registry/cache, registry/src, git as separate findings (git = ask). (8) freedisk --quick is volume+known paths, NOT this script's --quick (tier-1 target/ only). Help must say so. (9) Dry-run is scan. apply prints size. rm uses -- so names starting with - are not flags.
+External script /Users/ciprian/work_cip/holly_grail/hgDB/scripts/cleanup-space.sh. Encode the rules, do not copy the mutator. (1) Project artifacts vs shared caches: target/node_modules/.next/dist are rebuildable in-repo; ~/.cargo/registry and ~/.cargo/git affect every Rust project — risk ask, only as their own finding ids, never as a side effect of cleaning a repo. (2) Cargo target/ is often the largest reclaimable (hundreds of GB on a hot tree, and the expensive part of agent worktrees). Find target/ next to Cargo.toml at repo root, examples/*/target, sdks/*/target, and vendor/<crate>/target. Reclaim cmd: cargo clean in that tree. (3) rust vendor/ is SOURCE (vendor/paste/src). Do not classify cargo-vendor or Rails/Go vendor as Composer. Do not prune all vendor/ on the walk — only prune Composer vendor (parent composer.json); still record nested target/. Never propose deleting proptest-regressions/ or any git-tracked path. (4) JS extras beyond node_modules: .next, dist, .tsbuildinfo (file), .tsx-cache; also under examples/*/ and sdks/*/. (5) Worktrees: never rm -rf .claude/worktrees. Only leftover-worktree if git worktree list says prunable/gone AND older than worktree_inflight_hours (24), or dir mtime older than worktree_idle_days (14). Fresh agent checkouts are ask/keep. Reclaim: git worktree prune --expire 1.day or git worktree remove <path>. (6) Scan /tmp, /var/tmp, and $TMPDIR by default (always depth-1 children). Never delete those roots. Idle children ≥ tmp_idle_days (7) are high-confidence; newer still listed (Ask first). Do not add /tmp/hgdb-* as a special glob — it shows up as a child of /tmp. catalog add --glob remains for extra patterns. (7) Prefer cargo cache --autoclean when cargo-cache exists; otherwise report ~/.cargo/registry/cache, registry/src, git as separate findings (git = ask). (8) freedisk --quick is volume+known paths, NOT this script's --quick (tier-1 target/ only). Help must say so. (9) Dry-run is scan. delete prints size. rm uses -- so names starting with - are not flags.
 
 ### Stale rebuildable artifacts
 
-node_modules, Composer vendor, Rust target/, .next, dist (untracked), venvs, .tsx-cache, .tsbuildinfo are rebuildable and must appear in --dev/full when ≥ artifact_list_min_bytes. Set last_used from directory (or file) mtime. why must mention idle days when older than artifact_idle_days (default 30). Markdown: idle rebuildable under Reclaimable (high confidence); rebuildable newer than the threshold under Ask first. Risk stays rebuildable (not leftover-worktree). Git-tracked paths stay keep. apply still requires explicit human ids.
+node_modules, Composer vendor, Rust target/, .next, dist (untracked), venvs, .tsx-cache, .tsbuildinfo are rebuildable and must appear in --dev/full when ≥ artifact_list_min_bytes. Set last_used from directory (or file) mtime. why must mention idle days when older than artifact_idle_days (default 30). Markdown: idle rebuildable under Reclaimable (high confidence); rebuildable newer than the threshold under Ask first. Risk stays rebuildable (not leftover-worktree). Git-tracked paths stay keep. delete still requires explicit human ids.
 
 ### Temp dirs
 
-Bundled known paths: /tmp, /var/tmp, $TMPDIR (expand env; skip if realpath equals /tmp). scans [quick,dev,full]. always_drill: depth-1 children in the known phase, not waiting for 1 GiB drill. The tmp root finding is risk keep and is not apply-able. Children ≥ artifact_list_min_bytes are findings (risk ask) with last_used from mtime; idle ≥ tmp_idle_days (default 7) go in Reclaimable, newer in Ask first. Dedupe /tmp vs /private/tmp via realpath. EPERM child → unreadable. Never follow other symlinks out of tmp.
+Bundled known paths: /tmp, /var/tmp, $TMPDIR (expand env; skip if realpath equals /tmp). scans [quick,dev,full]. always_drill: depth-1 children in the known phase, not waiting for 1 GiB drill. The tmp root finding is risk keep and cannot be passed to delete. Children ≥ artifact_list_min_bytes are findings (risk ask) with last_used from mtime; idle ≥ tmp_idle_days (default 7) go in Reclaimable, newer in Ask first. Dedupe /tmp vs /private/tmp via realpath. EPERM child → unreadable. Never follow other symlinks out of tmp.
 
 ### Side effects
 
-diskutil/du/simctl: OS binaries, no network. Overlay write: user config dir. Last-scan persist: $XDG_CACHE_HOME/freedisk/last-scan.json. apply: only after confirm.
+diskutil/du/simctl: OS binaries, no network. Overlay write: user config dir. Last-scan persist: $XDG_CACHE_HOME/freedisk/last-scan.json. delete: only after confirm.
 
 ### Agent help
 
-`freedisk help` and `--help` print the same long usage: purpose (report-only); that a first scan needs no overlay; mode table (and that --quick is NOT cargo-target-only); catalog add/unassign/disable/--glob; scans list/disable/enable/add/remove; JSON-when-piped; apply rules (explicit ids, no --all, --yes on non-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes (0 report, 2 usage, 3 unknown id); copy-paste examples for catalog and scans. `help catalog`, `help scans`, `help scan` print those commands' Long text. Help never scans or deletes.
+`freedisk help` and `--help` print the same long usage: purpose (report-only); that a first scan needs no overlay; mode table (and that --quick is NOT cargo-target-only); catalog add/unassign/disable/--glob; scans list/disable/enable/add/remove; JSON-when-piped; delete rules (explicit ids, no --all, --yes on non-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes (0 report, 2 usage, 3 unknown id); copy-paste examples for catalog and scans. `help catalog`, `help scans`, `help scan` print those commands' Long text. Help never scans or deletes.
 
 ## Existing Code Leverage
 
@@ -223,7 +223,7 @@ internal/size reports allocated bytes (st_blocks*512 / lstat) and optional appar
 
 ### TASK-006: Path policy (never system roots)
 
-Absolute paths only; reject `..` as a component; reject control characters; deny prefixes from catalog thresholds.skip_system_prefixes (/System, /usr except /usr/local, /bin, /sbin, /private/var/vm, /dev, /net). Allow /usr/local and children of /tmp, /private/tmp, /var/tmp. Refuse deleting `/tmp`, `/private/tmp`, `/var/tmp`, and `$HOME/.cargo` as whole directories (children are decided at apply with risk). Used later by apply; scan still lists keep paths but apply uses this to refuse deletes.
+Absolute paths only; reject `..` as a component; reject control characters; deny prefixes from catalog thresholds.skip_system_prefixes (/System, /usr except /usr/local, /bin, /sbin, /private/var/vm, /dev, /net). Allow /usr/local and children of /tmp, /private/tmp, /var/tmp. Refuse deleting `/tmp`, `/private/tmp`, `/var/tmp`, and `$HOME/.cargo` as whole directories (children are decided at delete time with risk). Used later by delete; scan still lists keep paths but delete uses this to refuse deletes.
 
 **Type:** feature  
 **Priority:** P0  
@@ -368,7 +368,7 @@ Human report with Disk, Reclaimable, Ask first, Keep, Not present. risk keep/nev
 
 ### TASK-012: scan command: --mode quick|dev|full|user, JSON/md, never deletes
 
-internal/scan/run.go runs registered phases. Each Phase has Name plus Quick/Dev bools. `scan --mode=NAME` (default full); aliases `--quick` and `--dev`. quick = volume+known; dev = volume+known+artifacts+worktrees; full = all enabled phases. If NAME is not quick|dev|full, resolve overlay modes.NAME.types (volume always included); unknown NAME exit 2. Skip phases listed in overlay DisabledScans (volume cannot be skipped). Register volume as Quick+Dev named `volume`; known as Quick+Dev named `known`. internal/cli/scan.go Long help must name modes, `catalog add --scans`, `scans disable`, that scan never deletes, and that --quick is volume+known paths (not cargo-target-only). Non-TTY stdout => JSON; TTY => markdown unless --json. Scan must not import internal/apply and must not call os.Remove. Persist hook can be a no-op interface until TASK-017.
+internal/scan/run.go runs registered phases. Each Phase has Name plus Quick/Dev bools. `scan --mode=NAME` (default full); aliases `--quick` and `--dev`. quick = volume+known; dev = volume+known+artifacts+worktrees; full = all enabled phases. If NAME is not quick|dev|full, resolve overlay modes.NAME.types (volume always included); unknown NAME exit 2. Skip phases listed in overlay DisabledScans (volume cannot be skipped). Register volume as Quick+Dev named `volume`; known as Quick+Dev named `known`. internal/cli/scan.go Long help must name modes, `catalog add --scans`, `scans disable`, that scan never deletes, and that --quick is volume+known paths (not cargo-target-only). Non-TTY stdout => JSON; TTY => markdown unless --json. Scan must not import internal/reclaim and must not call os.Remove. Persist hook can be a no-op interface until TASK-017.
 
 **Type:** feature  
 **Priority:** P1  
@@ -389,7 +389,7 @@ internal/scan/run.go runs registered phases. Each Phase has Name plus Quick/Dev 
 
 - `scan --quick` does not invoke a Quick=false stub; `scan --dev` does not invoke a Dev=false stub; DisabledScans containing a stub name skips that phase even in full.
 - Unknown `--mode=nope` and combining `--quick --dev` each exit 2 and run zero phases.
-- Scan package tests fail if run.go references os.Remove or internal/apply; non-TTY stdout is JSON.
+- Scan package tests fail if run.go references os.Remove or internal/reclaim; non-TTY stdout is JSON.
 
 ### TASK-013: Drill phase (≥1GiB children)
 
@@ -417,7 +417,7 @@ Register a phase with Quick=false and Dev=false that du -d 1 equivalents on find
 
 ### TASK-014: Artifact walk (node_modules, target, pyvenv.cfg, vendor)
 
-Phase with Quick=false, Dev=true: pruned walk of merged work_roots plus work_root_discover hits (HOME depth-1 project containers; skip Library/Applications/media; skip names already in work_roots). Record catalog artifact dirs AND files (.tsbuildinfo, .tsx-cache, .next, dist, node_modules, target). target/ only next to Cargo.toml, including examples/*/target, sdks/*/target, vendor/<crate>/target. vendor/ itself only if parent has composer.json — cargo-vendor and Rails/Go vendor are keep (source). Do not prune all vendor/: prune Composer vendor; walk cargo-vendor to find nested target/. Skip any path `git ls-files` tracks (proptest-regressions/, committed dist). Prune into node_modules and recorded target/. Artifact-named dir is not a project container. Set last_used from mtime. If idle ≥ artifact_idle_days, why includes untouched N days; risk stays rebuildable. Still emit recently touched rebuildable artifacts (user decides via apply). Reclaim for target: `cargo clean` in the parent tree. Participates in --dev and full, not --quick.
+Phase with Quick=false, Dev=true: pruned walk of merged work_roots plus work_root_discover hits (HOME depth-1 project containers; skip Library/Applications/media; skip names already in work_roots). Record catalog artifact dirs AND files (.tsbuildinfo, .tsx-cache, .next, dist, node_modules, target). target/ only next to Cargo.toml, including examples/*/target, sdks/*/target, vendor/<crate>/target. vendor/ itself only if parent has composer.json — cargo-vendor and Rails/Go vendor are keep (source). Do not prune all vendor/: prune Composer vendor; walk cargo-vendor to find nested target/. Skip any path `git ls-files` tracks (proptest-regressions/, committed dist). Prune into node_modules and recorded target/. Artifact-named dir is not a project container. Set last_used from mtime. If idle ≥ artifact_idle_days, why includes untouched N days; risk stays rebuildable. Still emit recently touched rebuildable artifacts (user decides via delete). Reclaim for target: `cargo clean` in the parent tree. Participates in --dev and full, not --quick.
 
 **Type:** feature  
 **Priority:** P2  
@@ -488,9 +488,9 @@ Phase with Quick=false, Dev=false (full scan only). Apple: parse simctl JSON fix
 - Fixture with system-images and empty avd list still emits the image finding; not_present includes android AVDs.
 - Missing simctl binary: skip Apple sims, add not_present, do not fail the whole scan.
 
-### TASK-017: Persist last scan for apply/why
+### TASK-017: Persist last scan for delete/why
 
-Write findings.Report to $XDG_CACHE_HOME/freedisk/last-scan.json (or --config cache dir). Read back for apply/why. Corrupt JSON returns a typed error. Scan never deletes this file's targets.
+Write findings.Report to $XDG_CACHE_HOME/freedisk/last-scan.json (or --config cache dir). Read back for delete/why. Corrupt JSON returns a typed error. Scan never deletes this file's targets.
 
 **Type:** feature  
 **Priority:** P2  
@@ -536,9 +536,9 @@ Subcommand group that only edits the user overlay file. `catalog add PATH [--sca
 - `catalog unassign PATH --from dev` then ModePaths(dev) omits it; `catalog disable PATH` omits it from every mode; `unassign --from nope` exits 2 and does not write.
 - `catalog` with no subcommand and `catalog add` with no PATH each exit nonzero and do not write a file.
 
-### TASK-019: apply explicit ids only (never automatic)
+### TASK-019: delete explicit ids only (never automatic)
 
-internal/apply/exec.go is the only delete sink: validate policy, load last scan, resolve ids. cli/apply.go: `apply <id> [<id>...] [--yes]`. Reject --all and empty args (exit 2). Unknown id exit 3. Refuse risk keep/never, git-tracked paths, in-flight worktrees, and the ~/.cargo directory itself. Prefer reclaim.cmd owner command (cargo clean, cargo cache --autoclean, git worktree prune/remove). Print allocated size then act. Use rm -- (leading-dash names). Non-TTY without --yes: exit 2, no deletes. TTY: confirm each. Delete failure: nonzero for that id. Never implied by a project finding: do not touch ~/.cargo.
+internal/reclaim/exec.go is the only delete sink: validate policy, load last scan, resolve ids. cli/delete.go: `delete <id> [<id>...] [--yes]`. Reject --all and empty args (exit 2). Unknown id exit 3. Refuse risk keep/never, git-tracked paths, in-flight worktrees, and the ~/.cargo directory itself. Prefer reclaim.cmd owner command (cargo clean, cargo cache --autoclean, git worktree prune/remove). Print allocated size then act. Use rm -- (leading-dash names). Non-TTY without --yes: exit 2, no deletes. TTY: confirm each. Delete failure: nonzero for that id. Never implied by a project finding: do not touch ~/.cargo.
 
 **Type:** feature  
 **Priority:** P2  
@@ -549,17 +549,17 @@ internal/apply/exec.go is the only delete sink: validate policy, load last scan,
 
 **writeScope:**
 
-- `internal/cli/apply.go`
-- `internal/apply/exec.go`
-- `internal/apply/exec_test.go`
+- `internal/cli/delete.go`
+- `internal/reclaim/exec.go`
+- `internal/reclaim/exec_test.go`
 
-**validateCommand:** `go test ./internal/apply/ ./internal/cli/ -count=1 -run Apply`
+**validateCommand:** `go test ./internal/reclaim/ ./internal/cli/ -count=1 -run Delete`
 
 **Acceptance Criteria:**
 
-- apply with zero ids exits 2 and does not call remove; apply --all is rejected and does not delete.
-- Non-TTY apply with a valid id and no --yes exits 2; testdata file still exists.
-- apply --yes of a git-tracked file in a testdata git repo exits 2 and the file remains; apply of $HOME/.cargo as the path exits 2.
+- delete with zero ids exits 2 and does not call remove; delete --all is rejected and does not delete.
+- Non-TTY delete with a valid id and no --yes exits 2; testdata file still exists.
+- delete --yes of a git-tracked file in a testdata git repo exits 2 and the file remains; delete of $HOME/.cargo as the path exits 2.
 
 ### TASK-020: why: top reclaimable from last scan
 
@@ -583,11 +583,11 @@ internal/apply/exec.go is the only delete sink: validate policy, load last scan,
 
 - why on a fixture last-scan orders by bytes descending and omits keep.
 - why with no last-scan file exits 0 and prints a message containing last-scan (not a stack trace).
-- why does not call apply or os.Remove.
+- why does not call delete or os.Remove.
 
 ### TASK-021: Agent-facing AGENTS.md and README usage
 
-Add repo-root AGENTS.md: how agents run `freedisk help`, scan --json, --mode quick|dev|full, `catalog add --scans`, `catalog unassign --from`, `scans disable` / `scans add`, never apply unless the human named ids, no TUI. Update README.md to show build/run instead of “CLI is not built yet”. Do not rewrite RECIPE.md.
+Add repo-root AGENTS.md: how agents run `freedisk help`, scan --json, --mode quick|dev|full, `catalog add --scans`, `catalog unassign --from`, `scans disable` / `scans add`, never delete unless the human named ids, no TUI. Update README.md to show build/run instead of “CLI is not built yet”. Do not rewrite RECIPE.md.
 
 **Type:** docs  
 **Priority:** P3  
@@ -601,17 +601,17 @@ Add repo-root AGENTS.md: how agents run `freedisk help`, scan --json, --mode qui
 - `AGENTS.md`
 - `README.md`
 
-**validateCommand:** `python3 -c "import pathlib; a=pathlib.Path('AGENTS.md').read_text(); r=pathlib.Path('README.md').read_text(); assert 'freedisk help' in a and 'catalog add' in a and 'scans disable' in a and 'scan --dev' in a; assert 'apply' in a.lower(); assert 'go run ./cmd/freedisk' in r; assert 'CLI is not built yet' not in r"`
+**validateCommand:** `python3 -c "import pathlib; a=pathlib.Path('AGENTS.md').read_text(); r=pathlib.Path('README.md').read_text(); assert 'freedisk help' in a and 'catalog add' in a and 'scans disable' in a and 'scan --dev' in a; assert 'delete' in a.lower(); assert 'go run ./cmd/freedisk' in r; assert 'CLI is not built yet' not in r"`
 
 **Acceptance Criteria:**
 
-- AGENTS.md documents `freedisk help`, `scan --json`, `scan --dev`, `catalog add`, `scans disable`, and that apply is never automatic.
+- AGENTS.md documents `freedisk help`, `scan --json`, `scan --dev`, `catalog add`, `scans disable`, and that delete is never automatic.
 - README.md contains `go run ./cmd/freedisk` and does not say the CLI is not built yet.
-- AGENTS.md states agents must not run apply unless the human listed finding ids.
+- AGENTS.md states agents must not run delete unless the human listed finding ids.
 
 ### TASK-022: Agent-oriented help command
 
-internal/cli/help.go registers `help [command]` and a custom root help function so `freedisk help` and `freedisk --help` print the same long agent guide. The guide MUST include these copy-paste lines: `freedisk catalog add PATH --scans quick,dev`, `freedisk catalog unassign PATH --from quick`, `freedisk catalog disable PATH`, `freedisk scans list`, `freedisk scans disable artifacts`, `freedisk scans add rust --types artifacts,worktrees`, `freedisk scan --mode=rust --json`, `freedisk scan --dev --json`, `freedisk catalog add '/tmp/proj-*' --glob --scans dev`. Also: purpose (report-only); that no overlay is required for a first scan; mode table; that --quick is NOT cargo-target-only; JSON-when-piped; that stale node_modules/vendor/target are listed (idle ≥ 30 days high-confidence, newer Ask first, user applies ids); that /tmp /var/tmp $TMPDIR are scanned by default (children only, never the root); apply rules (explicit ids, no --all, --yes off-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes 0/2/3. `help catalog` and `help scans` print those commands' Long text. Help must not call scan or apply.
+internal/cli/help.go registers `help [command]` and a custom root help function so `freedisk help` and `freedisk --help` print the same long agent guide. The guide MUST include these copy-paste lines: `freedisk catalog add PATH --scans quick,dev`, `freedisk catalog unassign PATH --from quick`, `freedisk catalog disable PATH`, `freedisk scans list`, `freedisk scans disable artifacts`, `freedisk scans add rust --types artifacts,worktrees`, `freedisk scan --mode=rust --json`, `freedisk scan --dev --json`, `freedisk catalog add '/tmp/proj-*' --glob --scans dev`. Also: purpose (report-only); that no overlay is required for a first scan; mode table; that --quick is NOT cargo-target-only; JSON-when-piped; that stale node_modules/vendor/target are listed (idle ≥ 30 days high-confidence, newer Ask first, user runs delete with ids); that /tmp /var/tmp $TMPDIR are scanned by default (children only, never the root); delete rules (explicit ids, no --all, --yes off-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes 0/2/3. `help catalog` and `help scans` print those commands' Long text. Help must not call scan or delete.
 
 **Type:** feature  
 **Priority:** P1  
@@ -629,7 +629,7 @@ internal/cli/help.go registers `help [command]` and a custom root help function 
 
 **Acceptance Criteria:**
 
-- `help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `apply`, `never`, `node_modules`, `/tmp`, `overlay` or `starting`, and `git-tracked` or `tracked`.
+- `help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `delete`, `never`, `node_modules`, `/tmp`, `overlay` or `starting`, and `git-tracked` or `tracked`.
 - `help catalog` mentions `--scans`, `--from`, and `--glob`; `help scans` mentions `disable` and `add --types`; `help scan` mentions quick, dev, full, node_modules or rebuildable, that --quick is not cargo-target-only, and that scan does not delete.
 - `help definitely-not-a-command` exits nonzero and does not invoke a scan.
 
@@ -682,27 +682,27 @@ Additive edit of catalog/macos-hotspots.yaml only — do not delete existing sta
 
 ## Failure Modes
 
-- Empty apply args or --all: exit 2, filesystem unchanged.
-- Unknown apply id: exit 3, filesystem unchanged.
+- Empty delete args or --all: exit 2, filesystem unchanged.
+- Unknown delete id: exit 3, filesystem unchanged.
 - Missing bundled catalog file: exit 1 naming the paths tried; do not scan $HOME blindly.
 - EPERM/TCC on a path: append to unreadable[], continue, exit 0.
-- Corrupt last-scan.json: apply/why print a clear error; do not delete.
-- Non-TTY apply without --yes: exit 2 (agents must not hang on a prompt).
+- Corrupt last-scan.json: delete/why print a clear error; do not delete.
+- Non-TTY delete without --yes: exit 2 (agents must not hang on a prompt).
 - Unknown --mode or combining --quick with --dev: exit 2, no scan.
 - help of an unknown topic: exit 2, no scan.
 - catalog unassign --from unknown mode, or catalog add with no PATH: exit 2, overlay unchanged.
 - scans disable unknown type, scans disable volume, scans remove a built-in name (quick/dev/full): exit 2, overlay unchanged.
 - scans add with empty --types or duplicate name: exit 2.
-- apply of a git-tracked path, an in-flight worktree, ~/.cargo as a whole, or /tmp /var/tmp as a whole: exit 2, filesystem unchanged.
+- delete of a git-tracked path, an in-flight worktree, ~/.cargo as a whole, or /tmp /var/tmp as a whole: exit 2, filesystem unchanged.
 - catalog add glob with zero matches: overlay still writes; later scan skips (not a hard error).
 
 ## Ship Cut
 
-If execution stops after TASK-012: `go run ./cmd/freedisk scan --quick --json` prints schema-valid JSON from the bundled catalog + overlay merge, never deletes. `--dev` is a valid flag then but only runs volume+known(filtered) until TASK-014/015 register. Catalog CLI (018), scans CLI (023), apply (019), and agent help (022) can land after.
+If execution stops after TASK-012: `go run ./cmd/freedisk scan --quick --json` prints schema-valid JSON from the bundled catalog + overlay merge, never deletes. `--dev` is a valid flag then but only runs volume+known(filtered) until TASK-014/015 register. Catalog CLI (018), scans CLI (023), delete (019), and agent help (022) can land after.
 
 ## Test Coverage Map
 
-- Unit: catalog merge, glob zero-match skip, overlay disable unknown, unassign from one mode keeps other modes, disable_scans skips a phase, size allocated vs apparent, path policy, volume fixture parse, JSON required keys, markdown Not present, scan --quick omits artifact walk, --dev includes worktree/artifact stubs and skips drill, rust vendor src keep vs nested target, git-tracked skip, in-flight worktree not leftover, apply refuses --all and git-tracked.
+- Unit: catalog merge, glob zero-match skip, overlay disable unknown, unassign from one mode keeps other modes, disable_scans skips a phase, size allocated vs apparent, path policy, volume fixture parse, JSON required keys, markdown Not present, scan --quick omits artifact walk, --dev includes worktree/artifact stubs and skips drill, rust vendor src keep vs nested target, git-tracked skip, in-flight worktree not leftover, delete refuses --all and git-tracked.
 - CLI: help lists catalog add/unassign, scans disable/add, modes, never-delete rules; unknown subcommand and unknown help topic nonzero; scan --json on pipe.
 - No live $HOME walks in unit tests — use testdata trees.
 

@@ -33,6 +33,6 @@ Nothing is deleted in this repo. The CLI is not built yet.
 ## Later: CLI
 
 `freedisk scan` encodes RECIPE.md and never mutates the disk.
-`freedisk apply <id>` is the only delete path: explicit ids the human
+`freedisk delete <id>` is the only delete path: explicit ids the human
 named, with confirmation, never `--all`, never from an agent unless the
 human asked for those ids.

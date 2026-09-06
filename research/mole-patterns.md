@@ -46,7 +46,7 @@ Map onto our CLI:
 | `freedisk caches` | `mo clean` (dev subset) | **Report only.** Propose owner commands; never run them. |
 | `freedisk worktrees` | (Mole does not have this) | Our research gap Mole missed |
 | `freedisk simulators` | part of `mo clean` (Xcode runtimes) | Join on `runtimeIdentifier` |
-| `freedisk apply <id>` | selected items in clean/purge | Human-named ids only. Never automatic. |
+| `freedisk delete <id>` | selected items in clean/purge | Human-named ids only. Never automatic. |
 | scan is always non-mutating | `--dry-run` / `MOLE_DRY_RUN=1` | We have no live-delete scan. |
 | `--json` | `mo analyze --json`, `mo status --json`, auto-JSON when piped | Agents must not parse TUI |
 
@@ -56,20 +56,20 @@ Mole: every remove goes through `mole_delete` / `validate_path_for_deletion`
 (`lib/core/file_ops.sh`). Raw `rm -rf` needs `# SAFE: <reason>` on the
 same line; CI greps for it.
 
-We should: one `apply` path that checks absolute path, no `..` as a
+We should: one `delete` path that checks absolute path, no `..` as a
 component, no control chars, symlink-resolved ancestors, deny `/System`
 `/usr` (except `/usr/local`) `/bin` `/sbin`, refuse empty-variable collapse
 onto `/Users` or `$HOME`. Never delete from a **partial** timed-out scan.
 
 ### 3. Dry-run and real mode share one candidate plan
 
-Mole insists the preview list is the same set apply would touch. Homebrew
+Mole insists the preview list is the same set delete would touch. Homebrew
 `autoremove` is preview-first. Third-party owner commands (pnpm, uv, gh)
 must expose mutated roots machine-readably.
 
-We should: `scan` emits findings and never mutates. `apply` only
+We should: `scan` emits findings and never mutates. `delete` only
 accepts ids the **human** listed from that scan (or a fresh scan) and
-confirms each. No `--all`. No agent-initiated apply. No second hidden
+confirms each. No `--all`. No agent-initiated delete. No second hidden
 matcher at delete time.
 
 ### 4. Classify by recovery contract, not folder name
@@ -190,7 +190,7 @@ is `keep`; kache 48G is `ask` until we know the store contract.
 
 Before we add a command or target:
 
-1. Does it belong to scan / caches / artifacts / worktrees / simulators / apply / history?
+1. Does it belong to scan / caches / artifacts / worktrees / simulators / delete / history?
 2. Safe by default, previewable, testable without real sudo, explainable on one screen?
 3. Can the user (or agent) see the exact paths before anything changes?
 4. Is the data rebuildable, disposable, or backed by exact evidence?

@@ -27,7 +27,7 @@ OS: **macOS / APFS only** (first version). Linux is a different catalog.
 A **report-only** scan. **No delete is ever automatic.** The CLI, and
 any agent following this recipe, must never remove, trash, prune, or
 uninstall anything unless a human named the exact finding ids and
-confirmed. `scan` has no delete path. `apply` is opt-in, never default,
+confirmed. `scan` has no delete path. `delete` is opt-in, never default,
 never `--all`, never implied by “safe-cache”.
 
 Answer:
@@ -66,7 +66,7 @@ folder.
    snapshot (~17 GB) and will lie.
 9. **No delete is ever automatic.** Not on scan, not on “safe-cache”,
     not on leftover worktrees, not because a tool is idle. The only
-    delete path is `apply` with **explicit finding ids the human
+    delete path is `delete` with **explicit finding ids the human
     listed**, after they confirmed. Agents print reclaim commands; they
     do not run them unless the human said to run that id.
 10. **Default action is report.** `risk: never` items are not reclaimable.
@@ -100,7 +100,7 @@ folder.
 | `rebuildable` | Recreated by install/build | Propose command only |
 | `leftover-worktree` | Agent/git checkout whose session is gone | Propose after showing branch + age |
 | `unused-runtime` | Simulator / AVD / toolchain never used or superseded | Propose after showing lastBooted / current |
-| `ask` | Large, maybe still wanted | Propose only; extra confirmation if they later apply |
+| `ask` | Large, maybe still wanted | Propose only; extra confirmation if they later `delete` |
 | `keep` | Source, photos, current tools | Hide from reclaim list |
 | `never` | System, keychains | Do not list as reclaimable |
 
@@ -414,7 +414,7 @@ not promise reclaim.
 
 These strings go on the finding as `reclaim.cmd`. **Never execute them
 from scan, from an agent loop, or because risk is `safe-cache`.** The
-human must run `freedisk apply <id>` (or paste the command themselves)
+human must run `freedisk delete <id>` (or paste the command themselves)
 for each id they want.
 
 Map category → command. The CLI stores this next to the finding.
@@ -448,8 +448,8 @@ Map category → command. The CLI stores this next to the finding.
 | docker (engine up) | `docker system prune -a --volumes` then compact in Docker Desktop |
 | trash | `rm -rf ~/.Trash/*` |
 
-Never auto-apply anything — not `safe-cache`, not `ask`, not `never`.
-Never delete OS update snapshots. There is no `apply --all`.
+Never auto-delete anything — not `safe-cache`, not `ask`, not `never`.
+Never delete OS update snapshots. There is no `delete --all`.
 
 ---
 
@@ -504,14 +504,14 @@ freedisk worktrees         # grok / claude / git leftovers (report)
 freedisk artifacts         # project node_modules/target/.next (report)
 freedisk simulators        # apple + android (report)
 freedisk caches            # package-manager caches (report)
-freedisk apply <id> [<id>…]  # ONLY delete path. Explicit ids. Confirm each.
+freedisk delete <id> [<id>…]  # ONLY mutate path. Explicit ids. Confirm each.
                              # No --all. No default. Agents must not call
                              # this unless the human named those ids.
 freedisk history           # optional operation log
 ```
 
 Flags: `--json` (and JSON when stdout is not a TTY), `--debug`.
-There is no `--force` on scan. `apply` always confirms.
+There is no `--force` on scan. `delete` always confirms.
 
 No network required. No sudo. Exit 0 on a complete report even if some
 paths were unreadable.
@@ -519,7 +519,7 @@ paths were unreadable.
 Implementation notes stolen from Mole:
 
 - Router binary vs modules; one deletion sink; path validator
-- Dry-run and apply share the **same** candidate list
+- Dry-run (scan) and delete share the **same** candidate list
 - Prefer `uv cache prune` / `pnpm store prune` over `rm` of the store
 - Fail closed if the package manager process is running
 - Timed-out scans must not become delete candidates
@@ -560,6 +560,6 @@ Android system-image, uv/pip caches, extra nvm/rustup toolchains.
    because the first default path was empty.
 3. Write findings JSON + the human report in §11.
 4. Do not delete anything. Do not run reclaim commands. Do not call
-   `apply`. Print proposals only.
+   `delete`. Print proposals only.
 5. If you learn a new hotspot path, add it to the YAML catalog and a
    one-line lesson to this recipe — do not only mention it in chat.

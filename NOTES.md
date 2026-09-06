@@ -21,7 +21,7 @@ Answer, quickly and safely:
 4. What exact command would reclaim each bucket, and how risky is it?
 
 The CLI should **report only**. **No delete is ever automatic.** Cleanup
-is a separate `apply` of explicit finding ids the human named and
+is a separate `delete` of explicit finding ids the human named and
 confirmed — never `--all`, never implied by risk class.
 
 ---
@@ -1039,7 +1039,7 @@ Trash: empty.
 ## 16. Reclaim playbook (commands, not executed in this audit)
 
 Dry-run / inspect first. The CLI should print these, not run them unless
-`apply <id>` after the user named that id. Never automatic.
+`delete <id>` after the user named that id. Never automatic.
 
 ```bash
 # Grok leftover worktrees
@@ -1103,7 +1103,7 @@ freedisk worktrees         # git + claude + grok + ulpi
 freedisk artifacts         # node_modules/target/vendor/.next grouped
 freedisk simulators        # simctl + android
 freedisk caches            # package managers + ~/Library/Caches
-freedisk apply <id>        # ONLY delete path; explicit id; confirm; never auto
+freedisk delete <id>       # ONLY mutate path; explicit id; confirm; never auto
 ```
 
 Implementation notes:

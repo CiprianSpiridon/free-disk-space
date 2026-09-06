@@ -2,7 +2,7 @@
 # Paths starting with ~ expand to the current user home.
 # Glob: if `glob` is true, expand with the shell / glob crate.
 # risk: safe-cache | rebuildable | leftover-worktree | unused-runtime | ask | keep | never
-# risk never implies auto-delete. Scan never mutates. apply requires explicit ids.
+# risk never implies auto-delete. Scan never mutates. delete requires explicit ids.
 #
 # Measure allocated bytes (du / st_blocks*512), never ls -l size.
 # Skip missing paths. Never follow symlinks. Never require sudo.
@@ -200,7 +200,7 @@ python:
   - { path: "~/.local/pipx", category: pipx, risk: ask }
 
 rust:
-  - { path: "~/.cargo", category: cargo, risk: keep, drill: true, note: "Never apply the whole ~/.cargo directory." }
+  - { path: "~/.cargo", category: cargo, risk: keep, drill: true, note: "Never delete the whole ~/.cargo directory." }
   - { path: "~/.cargo/registry/cache", category: cargo-registry-cache, risk: safe-cache, reclaim: "cargo cache --autoclean" }
   - { path: "~/.cargo/registry/src", category: cargo-registry-src, risk: ask }
   - { path: "~/.cargo/registry", category: cargo-registry, risk: ask }
@@ -372,7 +372,7 @@ thresholds:
   drill_bytes: 1073741824          # 1 GiB — depth-1 into children
   report_bytes: 52428800           # 50 MiB — mention in human report
   artifact_list_min_bytes: 5242880 # 5 MiB — list individual artifact dirs
-  artifact_idle_days: 30           # rebuildable node_modules/vendor/target/.next: high-confidence if mtime older; still listed if newer (Ask first). User decides via apply.
+  artifact_idle_days: 30           # rebuildable node_modules/vendor/target/.next: high-confidence if mtime older; still listed if newer (Ask first). User decides via delete.
   tmp_idle_days: 7                 # /tmp, /var/tmp, $TMPDIR children: high-confidence if mtime older; newer still listed (Ask first). Never delete the tmp root.
   worktree_idle_days: 14           # leftover-worktree if mtime older
   worktree_inflight_hours: 24      # fresh agent worktrees are not leftover

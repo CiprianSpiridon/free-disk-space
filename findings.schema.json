@@ -92,7 +92,7 @@
         },
         "reclaim": {
           "type": "object",
-          "description": "Proposed command only. Scan never executes this. apply requires explicit human-named ids.",
+          "description": "Proposed command only. Scan never executes this. delete requires explicit human-named ids.",
           "required": ["cmd"],
           "properties": {
             "cmd": { "type": "string" },

@@ -34,19 +34,21 @@ plan = {
             "Stale rebuildable artifacts (node_modules, Composer vendor, target, .next, venvs) are listed; idle ≥ artifact_idle_days (30) is high-confidence reclaimable, newer is Ask first. User runs delete with those ids.",
             "/tmp, /var/tmp, and $TMPDIR are scanned by default; never delete those roots; idle children ≥ tmp_idle_days (7) are high-confidence.",
             "Encode learnings from hgDB scripts/cleanup-space.sh (external): git-tracked keep, nested Cargo target/, rust vendor is source, in-flight worktrees, shared ~/.cargo opt-in.",
+            "Size in-process (st_blocks*512). Never fork du per path. diskutil/simctl/git only for their phases.",
             "Default review posture: none.",
         ],
         "overlap": (
             "Repo is research-only today: RECIPE.md, catalog/macos-hotspots.yaml, "
             "findings.schema.json, research/mole-patterns.md, README.md, NOTES.md. "
             "No Go module, no cmd/, no src/. Every implementation path below is new "
-            "except edits to README.md and additive edits to catalog/macos-hotspots.yaml (TASK-024). "
+            "except edits to README.md. Catalog starting-point rows already live in macos-hotspots.yaml; "
+            "TASK-024 is a regression test that must not rewrite the YAML. "
             "External reference (not in this repo): "
             "/Users/ciprian/work_cip/holly_grail/hgDB/scripts/cleanup-space.sh."
         ),
     },
     "prerequisites": [
-        "macOS host with Go 1.22+ on PATH for implementers (binary itself calls diskutil/du; no sudo).",
+        "macOS host with Go 1.22+ on PATH for implementers. Size in-process (st_blocks*512); shell out only to diskutil/simctl/git when that phase needs them. No sudo.",
         "Treat RECIPE.md as scan-order contract; do not invent a different pipeline.",
         "Emit findings matching findings.schema.json (allocated bytes, risk enum, reclaim.cmd never executed by scan).",
         "Load catalog/macos-hotspots.yaml as the bundled list; missing paths skip, never fail the scan. Zero overlay must still produce a useful report.",
@@ -66,6 +68,7 @@ plan = {
         "A mutating clone of hgDB cleanup-space.sh (that script deletes by default). Scan never deletes; shared ~/.cargo is never implied by a project artifact delete.",
         "Project-specific /tmp/hgdb-* glob in the bundled catalog; generic /tmp /var/tmp $TMPDIR are included by default.",
         "Machine-specific work roots (e.g. ~/work_cip) in the bundled YAML; those are discovered at $HOME depth-1 or added via overlay.",
+        "Depending on gdu/dust/ncdu or forking `du` per catalog path.",
     ],
     "contracts": [
         {
@@ -109,9 +112,11 @@ plan = {
         {
             "name": "Phase registration",
             "detail": (
-                "internal/scan.Register(Phase) so later phases do not edit run.go. "
-                "Each phase has a stable Name (volume, known, drill, artifacts, worktrees, apple-sim, android-sim). "
-                "quick runs volume+known; dev runs volume+known+artifacts+worktrees (known is filtered by path scans tags); "
+                "internal/scan.Register(Phase) lives in run.go (TASK-012). "
+                "TASK-012 is the only task that registers volume and known (calls into volume.go / known.go). "
+                "TASK-013+ register themselves from init() and must not edit run.go. "
+                "Each phase has a stable Name (volume, known, tmp, drill, artifacts, worktrees, apple-sim, android-sim). "
+                "quick runs volume+known+tmp; dev runs those plus artifacts+worktrees; "
                 "full runs every enabled phase. Overlay disable_scans skips a phase. volume cannot be disabled. "
                 "scan --mode=<user> runs overlay modes.<user>.types plus volume."
             ),
@@ -122,6 +127,7 @@ plan = {
                 "internal/reclaim is the only package that may delete. Path policy from internal/policy. "
                 "Last scan ids from internal/scan persist file. No second matcher. "
                 "Prefer reclaim.cmd owner commands (cargo clean, cargo cache --autoclean, git worktree prune/remove, npm/pnpm/uv prune) over rm. "
+                "Fail closed if the owner process is running (npm/pnpm/yarn/cargo/uv): skip that id, filesystem unchanged. "
                 "Refuse git-tracked paths, risk keep/never, in-flight worktrees (< worktree_inflight_hours), and deleting all of ~/.cargo. "
                 "Print allocated size then delete (hgDB script pattern). Delete failure: nonzero, stop that id, do not continue as success."
             ),
@@ -155,7 +161,7 @@ plan = {
             "name": "Temp dirs",
             "detail": (
                 "Bundled known paths: /tmp, /var/tmp, $TMPDIR (expand env; skip if realpath equals /tmp). "
-                "scans [quick,dev,full]. always_drill: depth-1 children in the known phase, not waiting for 1 GiB drill. "
+                "scans [quick,dev,full]. Depth-1 children are TASK-025 (phase tmp, Quick+Dev), not the 1 GiB drill. "
                 "The tmp root finding is risk keep and cannot be passed to delete. Children ≥ artifact_list_min_bytes are findings "
                 "(risk ask) with last_used from mtime; idle ≥ tmp_idle_days (default 7) go in Reclaimable, newer in Ask first. "
                 "Dedupe /tmp vs /private/tmp via realpath. EPERM child → unreadable. Never follow other symlinks out of tmp."
@@ -164,8 +170,8 @@ plan = {
         {
             "name": "Side effects",
             "detail": (
-                "diskutil/du/simctl: OS binaries, no network. Overlay write: user config dir. "
-                "Last-scan persist: $XDG_CACHE_HOME/freedisk/last-scan.json. delete: only after confirm."
+                "Sizing: in-process lstat/walk only (no network). diskutil once for volume; simctl only in sim phase; git only in worktree/artifact git checks. "
+                "Overlay write: user config dir. Last-scan persist: $XDG_CACHE_HOME/freedisk/last-scan.json. delete: only after confirm."
             ),
         },
         {
@@ -179,9 +185,29 @@ plan = {
                 "`help catalog`, `help scans`, `help scan` print those commands' Long text. Help never scans or deletes."
             ),
         },
+        {
+            "name": "Sizing (fast path)",
+            "detail": (
+                "internal/size is the only sizer. Allocated = st_blocks*512 from lstat; never st_size for fullness. "
+                "Never import os/exec in internal/size. Never exec du, find, or gdu. "
+                "DirSize walks once, followlinks false, bounded concurrency across disjoint roots only (pool size 4). "
+                "Depth-1 is ReadDir + DirSize/FileSize per child. Cache by realpath. "
+                "Darwin may use getattrlistbulk for listings; not required if ReadDir+lstat is correct. "
+                "diskutil/simctl/git are phase APIs, not sizers."
+            ),
+        },
     ],
+    "architecture": (
+        "diskutil apfs list (once) → Volume\n"
+        "catalog YAML + overlay → ModePaths / DisabledScans / work roots\n"
+        "internal/size (in-process st_blocks, no du) → allocated bytes\n"
+        "run.go Register: volume+known (012); tmp/drill/artifacts/worktrees/sims self-register (013+)\n"
+        "quick: volume, known, tmp | dev: + artifacts, worktrees | full: all enabled\n"
+        "persist last-scan.json → why + delete\n"
+        "delete: policy + busy-process + last-scan ids + reclaim.cmd | scan never imports reclaim"
+    ),
     "existingCode": [
-        "catalog/macos-hotspots.yaml — bundled path/artifact/API catalog; TASK-024 adds hgDB-derived rows, do not replace the file wholesale.",
+        "catalog/macos-hotspots.yaml — bundled starting-point catalog; TASK-024 is a load-time regression test, do not rewrite the YAML.",
         "findings.schema.json — output contract.",
         "RECIPE.md — scan order, markers, invariants (do not rewrite).",
         "research/mole-patterns.md — owner commands, fail-closed if busy, simctl runtimeIdentifier, no auto-delete; Cargo git is ask not blanket-delete.",
@@ -189,10 +215,9 @@ plan = {
         "README.md — replace “CLI is not built yet” when the binary exists (TASK-021).",
     ],
     "shipCut": (
-        "If execution stops after TASK-012: `go run ./cmd/freedisk scan --quick --json` prints schema-valid "
-        "JSON from the bundled catalog + overlay merge, never deletes. `--dev` is a valid flag then but only "
-        "runs volume+known(filtered) until TASK-014/015 register. Catalog CLI (018), scans CLI (023), "
-        "delete (019), and agent help (022) can land after."
+        "Ship `--quick` after TASK-012: `go run ./cmd/freedisk scan --quick --json` is schema-valid JSON from "
+        "volume + known paths, never deletes. `--dev` is not a ship until TASK-014, TASK-015, and TASK-025 "
+        "have registered. Catalog CLI (018), scans CLI (023), delete (019), and help (022) can land after 012."
     ),
     "failureModes": [
         "Empty delete args or --all: exit 2, filesystem unchanged.",
@@ -208,10 +233,15 @@ plan = {
         "scans add with empty --types or duplicate name: exit 2.",
         "delete of a git-tracked path, an in-flight worktree, ~/.cargo as a whole, or /tmp /var/tmp as a whole: exit 2, filesystem unchanged.",
         "catalog add glob with zero matches: overlay still writes; later scan skips (not a hard error).",
+        "diskutil or simctl missing: that phase records not_present / volume error, scan continues or exits 1 only if volume cannot be read; do not crash.",
+        "delete of an id whose reclaim.cmd owner process is running (npm/pnpm/yarn/cargo/uv): exit 2 for that id, filesystem unchanged.",
     ],
     "testCoverage": [
-        "Unit: catalog merge, glob zero-match skip, overlay disable unknown, unassign from one mode keeps other modes, disable_scans skips a phase, size allocated vs apparent, path policy, volume fixture parse, JSON required keys, markdown Not present, scan --quick omits artifact walk, --dev includes worktree/artifact stubs and skips drill, rust vendor src keep vs nested target, git-tracked skip, in-flight worktree not leftover, delete refuses --all and git-tracked.",
-        "CLI: help lists catalog add/unassign, scans disable/add, modes, never-delete rules; unknown subcommand and unknown help topic nonzero; scan --json on pipe.",
+        "internal/size: allocated vs apparent; missing path; package must not import os/exec (TASK-005).",
+        "internal/catalog: load bundled starting-point keys; overlay add/disable/unassign; glob zero-match (TASK-003, 004, 024).",
+        "internal/scan: volume fixture; known-path skip missing; tmp children always_drill (TASK-025); drill timeout; artifacts prune + git-tracked; worktree in-flight; simctl name vs runtimeIdentifier (TASK-007/008/013–016).",
+        "internal/cli: scan --quick omits artifacts; --dev after 014/015 includes them; delete refuses --all, git-tracked, busy owner, /tmp root (TASK-012, 019, 022).",
+        "internal/report: JSON required keys; markdown Reclaimable vs Ask first by idle (TASK-010, 011).",
         "No live $HOME walks in unit tests — use testdata trees.",
     ],
     "tasks": [],
@@ -329,10 +359,11 @@ plan["tasks"] = [
     ),
     T(
         id="TASK-005",
-        title="Allocated-byte sizer",
+        title="Allocated-byte sizer (in-process, no du)",
         description=(
             "internal/size reports allocated bytes (st_blocks*512 / lstat) and optional apparent st_size. "
-            "Missing path: size 0, ok=false, no panic. Never follow symlinks for the target leaf when measuring a directory walk."
+            "DirSize walks in-process. Missing path: size 0, ok=false, no panic. Never follow symlinks. "
+            "Must not import os/exec or call du/find. Bounded parallel only across caller-supplied disjoint roots."
         ),
         type="feature",
         priority="P0",
@@ -340,10 +371,11 @@ plan["tasks"] = [
         agent="go-cli-senior-engineer",
         dependsOn=["TASK-001"],
         labels=["size"],
-        filesToCreate=["internal/size/du.go", "internal/size/du_test.go"],
+        filesToCreate=["internal/size/size.go", "internal/size/size_test.go"],
         acceptanceCriteria=[
             "A regular file's allocated size is >0 and is not taken from a fake large apparent-only value in tests.",
             "Missing path returns allocated 0 and an is-missing flag without panic.",
+            "The size package source does not import os/exec (test greps imports).",
         ],
         validateCommand="go test ./internal/size/ -count=1",
     ),
@@ -378,7 +410,9 @@ plan["tasks"] = [
         description=(
             "Parse diskutil apfs list (and optional df Data volume) into findings.Volume. "
             "Unit tests use a checked-in fixture string, not the live machine. "
-            "Do not treat df / used bytes as container fullness."
+            "Do not treat df / used bytes as container fullness. "
+            "Live runner (wired in TASK-012) execs diskutil at most once per scan; if diskutil is missing, return an error for the volume phase. "
+            "Do not Register here — TASK-012 registers the volume phase."
         ),
         type="feature",
         priority="P0",
@@ -400,13 +434,13 @@ plan["tasks"] = [
         description=(
             "Walk merged catalog path entries for the current mode: skip missing, skip overlay-disabled, "
             "skip entries whose scans tags do not include the current mode, expand glob:true (zero matches skip), "
-            "expand $TMPDIR, size existing with internal/size. "
+            "expand $TMPDIR, size existing with internal/size (no du). "
             "Emit findings with category/risk/reclaim from the YAML. "
-            "always_drill (tmp roots): also emit depth-1 children ≥ artifact_list_min_bytes with last_used; "
-            "do not emit the tmp root as reclaimable (risk keep). Dedupe realpath so /tmp and /private/tmp are one tree. "
+            "Do not emit depth-1 children here — tmp children are TASK-025. "
+            "Dedupe realpath so /tmp and /private/tmp are one sized root. "
             "Sparse catalog entries set bytes_apparent when size reports a gap. "
             "~/.cargo/git and ~/.cargo/registry/src stay risk ask even if listed. "
-            "Phase name is `known`. Register as participating in quick and dev (path tags do the filtering)."
+            "Export Known() for TASK-012 to Register; do not call Register in this task."
         ),
         type="feature",
         priority="P1",
@@ -418,7 +452,7 @@ plan["tasks"] = [
         acceptanceCriteria=[
             "Testdata tree with only ~/.npm/_cacache fake dir emits one finding in mode quick and does not error on missing ~/.rbenv.",
             "Disabled overlay path is absent from findings; a path tagged only [dev] is absent from a quick-mode known scan; glob:true with no matches adds nothing and does not fail.",
-            "Testdata /tmp-root with always_drill emits a keep finding for the root plus a child file ≥ min bytes; the root is not risk ask; /tmp and a symlink alias do not double-count.",
+            "Testdata /tmp and a symlink alias to the same dir emit one finding (realpath); does not spawn du (no os/exec in known.go).",
         ],
         validateCommand="go test ./internal/scan/ -count=1 -run Known",
     ),
@@ -499,7 +533,8 @@ plan["tasks"] = [
             "quick = volume+known; dev = volume+known+artifacts+worktrees; full = all enabled phases. "
             "If NAME is not quick|dev|full, resolve overlay modes.NAME.types (volume always included); unknown NAME exit 2. "
             "Skip phases listed in overlay DisabledScans (volume cannot be skipped). "
-            "Register volume as Quick+Dev named `volume`; known as Quick+Dev named `known`. "
+            "This task is the only place that Registers volume (Quick+Dev) and known (Quick+Dev) by calling volume.go / known.go helpers. "
+            "Later phases must self-register via init() and must not edit run.go. "
             "internal/cli/scan.go Long help must name modes, `catalog add --scans`, `scans disable`, "
             "that scan never deletes, and that --quick is volume+known paths (not cargo-target-only). "
             "Non-TTY stdout => JSON; TTY => markdown unless --json. "
@@ -524,8 +559,9 @@ plan["tasks"] = [
         id="TASK-013",
         title="Drill phase (≥1GiB children)",
         description=(
-            "Register a phase with Quick=false and Dev=false that du -d 1 equivalents on findings with catalog drill:true "
-            "and size>=thresholds.drill_bytes. init() Register only — do not edit run.go. Partial timeout discards that node's children."
+            "Register a phase with Quick=false and Dev=false that depth-1 lists findings with catalog drill:true "
+            "and size>=thresholds.drill_bytes using internal/size on each child (no du). init() Register only — do not edit run.go. "
+            "Partial timeout discards that node's children."
         ),
         type="feature",
         priority="P2",
@@ -680,6 +716,7 @@ plan["tasks"] = [
             "Refuse risk keep/never, git-tracked paths, in-flight worktrees, and the ~/.cargo directory itself. "
             "Prefer reclaim.cmd owner command (cargo clean, cargo cache --autoclean, git worktree prune/remove). "
             "Print allocated size then act. Use rm -- (leading-dash names). Non-TTY without --yes: exit 2, no deletes. TTY: confirm each. "
+            "If reclaim.cmd is an owner tool and that process is running, do not delete (fail closed). "
             "Delete failure: nonzero for that id. Never implied by a project finding: do not touch ~/.cargo."
         ),
         type="feature",
@@ -692,7 +729,7 @@ plan["tasks"] = [
         acceptanceCriteria=[
             "delete with zero ids exits 2 and does not call remove; delete --all is rejected and does not delete.",
             "Non-TTY delete with a valid id and no --yes exits 2; testdata file still exists.",
-            "delete --yes of a git-tracked file in a testdata git repo exits 2 and the file remains; delete of $HOME/.cargo as the path exits 2.",
+            "delete --yes of a git-tracked file in a testdata git repo exits 2 and the file remains; delete of $HOME/.cargo as the path exits 2; delete of an id whose owner process is stubbed running (npm/pnpm/cargo/uv) exits 2 and the file remains.",
         ],
         validateCommand="go test ./internal/reclaim/ ./internal/cli/ -count=1 -run Delete",
     ),
@@ -804,31 +841,50 @@ plan["tasks"] = [
     ),
     T(
         id="TASK-024",
-        title="Add hgDB cleanup-space rows to bundled catalog",
+        title="Starting-point catalog regression test",
         description=(
-            "Additive edit of catalog/macos-hotspots.yaml only — do not delete existing starting-point rows "
-            "(tmp, language_homes, editors, generic work_roots, work_root_discover). Do not add /tmp/hgdb-* or ~/work_cip. "
-            "keep the bundled tmp: /tmp, /var/tmp, $TMPDIR. "
-            "Add artifact names `.tsx-cache` and `.tsbuildinfo` (file). "
-            "Split cargo: `~/.cargo/registry/cache` (safe-cache, reclaim cargo cache --autoclean), "
-            "`~/.cargo/registry/src` (ask), keep `~/.cargo/git` as ask (not safe-cache). "
-            "Keep thresholds.artifact_idle_days (30) and worktree_inflight_hours (24) if already present; add them if missing. "
-            "Note on vendor: cargo-vendor source is keep; nested target/ is rebuildable. "
-            "Reclaim for rust target remains cargo clean."
+            "Do not edit catalog/macos-hotspots.yaml. Add internal/catalog/starting_point_test.go that loads the "
+            "bundled YAML via catalog.Load and asserts the zero-config starting point is intact: /tmp, $TMPDIR, "
+            "work_root_discover.enabled, .tsx-cache, registry/cache, cargo git risk ask, android homebrew SDK path, "
+            "no work_cip / work_mumzworld /tmp/hgdb rows."
         ),
-        type="chore",
+        type="test",
         priority="P1",
         effort="S",
-        agent="general-purpose",
+        agent="go-cli-senior-engineer",
         dependsOn=["TASK-003"],
-        labels=["catalog", "hgdb"],
-        filesToModify=["catalog/macos-hotspots.yaml"],
+        labels=["catalog", "regression"],
+        filesToCreate=["internal/catalog/starting_point_test.go"],
         acceptanceCriteria=[
-            "YAML contains `.tsx-cache`, `.tsbuildinfo`, `registry/cache`, `worktree_inflight_hours`, and `artifact_idle_days`.",
-            "`~/.cargo/git` risk is ask (not safe-cache); `/tmp` is present as a tmp root; `/tmp/hgdb` is not present; `work_cip` is not a bundled work_root.",
-            "Existing android homebrew SDK path row still present.",
+            "Test fails if /tmp, work_root_discover, or the android homebrew SDK path is missing from a loaded catalog.",
+            "Test fails if work_cip or /tmp/hgdb appears as a bundled path.",
+            "The task writeScope does not include catalog/macos-hotspots.yaml.",
         ],
-        validateCommand="python3 -c \"from pathlib import Path; t=Path('catalog/macos-hotspots.yaml').read_text(); assert '.tsx-cache' in t and '.tsbuildinfo' in t and 'registry/cache' in t and 'worktree_inflight_hours' in t and 'artifact_idle_days' in t and 'tmp_idle_days' in t and 'work_root_discover' in t; assert 'path: \\\"/tmp\\\"' in t or '\\\"/tmp\\\"' in t; assert '/tmp/hgdb' not in t and 'work_cip' not in t and 'work_mumzworld' not in t; i=t.find('~/.cargo/git'); assert i!=-1 and 'ask' in t[i:i+120]; assert '/opt/homebrew/share/android-commandlinetools' in t\"",
+        validateCommand="go test ./internal/catalog/ -count=1 -run StartingPoint",
+    ),
+    T(
+        id="TASK-025",
+        title="Tmp children (always_drill, participates in --quick)",
+        description=(
+            "Self-register phase Name=tmp, Quick=true, Dev=true. Do not edit run.go. "
+            "For catalog tmp roots (/tmp, /var/tmp, $TMPDIR): ReadDir depth-1, size each child with internal/size "
+            "(no du). Emit child findings ≥ artifact_list_min_bytes, risk ask, last_used from mtime. "
+            "Idle ≥ tmp_idle_days noted in why. The tmp root itself stays keep (from known). "
+            "Dedupe realpath. EPERM child → unreadable. Missing diskutil is unrelated — missing tmp dir skips."
+        ),
+        type="feature",
+        priority="P1",
+        effort="M",
+        agent="go-cli-senior-engineer",
+        dependsOn=["TASK-012"],
+        labels=["scan", "tmp"],
+        filesToCreate=["internal/scan/tmp.go", "internal/scan/tmp_test.go"],
+        acceptanceCriteria=[
+            "Testdata tmp root with a large idle child emits the child as ask and does not mark the root as reclaimable.",
+            "`scan --quick` on testdata includes the tmp-child phase (Quick=true); a drill-only stub is still omitted.",
+            "Two paths that realpath to the same tmp dir do not emit duplicate children.",
+        ],
+        validateCommand="go test ./internal/scan/ -count=1 -run Tmp",
     ),
 ]
 
@@ -931,6 +987,12 @@ def md() -> str:
         a("")
         a(c["detail"])
         a("")
+    a("## Architecture")
+    a("")
+    a("```")
+    a(t.get("architecture", ""))
+    a("```")
+    a("")
     a("## Existing Code Leverage")
     a("")
     for p in t["existingCode"]:

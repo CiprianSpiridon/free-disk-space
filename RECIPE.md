@@ -481,13 +481,25 @@ the default folder is empty.
 
 ## 12. Performance
 
-- Phase 1 known paths before any home walk
-- Split `~/Library/Containers` (Docker.raw) and `~/Library/Caches` into
-  their own jobs
-- Artifact walk with prune is ~tens of seconds; sizing those dirs is the
-  slow part
-- `find ~ -name node_modules` without prune is a trap
-- Do not run six `du`s of the same tree at once
+The CLI must **not** shell out to `du` in a loop. `du` forks, walks, and
+prints; doing that per catalog path thrashes the SSD. Size in-process:
+
+- Allocated bytes: `lstat` / `st_blocks * 512` (same as `du -sk`, no
+  subprocess). Apparent: `st_size` only for sparse files.
+- Directory size: one walk (`ReadDir` / `getattrlistbulk` on Darwin),
+  no symlink follow, prune artifact names.
+- Depth-1: `ReadDir` + size each child, not a recursive walk of the
+  parent and of every child.
+- Parallelize **disjoint trees only**, bounded pool (about 4). Never
+  two walkers on the same path.
+- `diskutil apfs list` once per scan. `simctl` only in the sim phase.
+  `git worktree list` / `git ls-files` once per repo, not per file.
+- No `find ~ -name node_modules`. No `du -sh dir/*` (ARG_MAX).
+- Cache by realpath so `/tmp` and `/private/tmp` are one walk.
+
+Phase order still matters: known paths before any home walk. Split
+`~/Library/Containers` (Docker.raw) and `~/Library/Caches` into
+separate pool jobs.
 
 ---
 

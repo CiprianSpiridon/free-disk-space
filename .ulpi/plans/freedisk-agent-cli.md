@@ -1,0 +1,731 @@
+# Plan: Agent-friendly freedisk CLI
+
+## Overview
+
+Greenfield Go CLI (`freedisk`) that encodes RECIPE.md for agents: scan/report with modes quick|dev|full plus user-defined scan types, a user-editable catalog overlay (add/unassign/disable via CLI), JSON-first output, a detailed `help` command, and apply only for explicit human-named finding ids. No TUI. No automatic deletes.
+
+## Scope Challenge
+
+**Mode:** EXPANSION  
+**Review default:** none
+
+Repo is research-only today: RECIPE.md, catalog/macos-hotspots.yaml, findings.schema.json, research/mole-patterns.md, README.md, NOTES.md. No Go module, no cmd/, no src/. Every implementation path below is new except edits to README.md and additive edits to catalog/macos-hotspots.yaml (TASK-024). External reference (not in this repo): /Users/ciprian/work_cip/holly_grail/hgDB/scripts/cleanup-space.sh.
+
+- CLI only; no TUI, no status dashboard, no app uninstaller.
+- Primary users are agents (Claude Code, Codex, Grok, Cursor); humans get the same commands.
+- Catalog overlay via CLI: add paths, assign them to scan types, unassign from a type, or disable entirely — no YAML editing required.
+- Scan types are first-class: built-in quick|dev|full, disable/enable a phase (artifacts, worktrees, drill, …), add/remove a named user scan.
+- Scan modes: --quick (volume + known paths), --dev (volume + leftover worktrees + project artifacts + catalog paths tagged dev), full default (all enabled phases).
+- `freedisk help` documents catalog, scans, modes, JSON, and never-delete rules with copy-paste examples.
+- Deletes never automatic. apply requires explicit ids + --yes when stdout is not a TTY.
+- Encode learnings from hgDB scripts/cleanup-space.sh (external): git-tracked keep, nested Cargo target/, rust vendor is source, in-flight worktrees, shared ~/.cargo opt-in.
+- Default review posture: none.
+
+## Prerequisites
+
+- macOS host with Go 1.22+ on PATH for implementers (binary itself calls diskutil/du; no sudo).
+- Treat RECIPE.md as scan-order contract; do not invent a different pipeline.
+- Emit findings matching findings.schema.json (allocated bytes, risk enum, reclaim.cmd never executed by scan).
+- Load catalog/macos-hotspots.yaml as the bundled list; missing paths skip, never fail the scan.
+- No delete on scan/why/catalog/scans/help. apply is the only mutate path.
+
+## Non-Goals
+
+- TUI / Bubble Tea / mo analyze clone.
+- mo status live dashboard, optimize (DNS/Spotlight), app uninstall.
+- Linux or Windows in v1.
+- Automatic or --all deletes; agent-initiated apply without the human naming ids.
+- Homebrew/npm publish, background daemon, telemetry.
+- Copying Mole GPL-3 source.
+- go install embed of the YAML (v1 loads catalog file / --catalog / FREEDISK_CATALOG).
+- Operation history log (RECIPE optional; cut).
+- Separate worktrees/artifacts/simulators/caches top-level report commands; use `scan --mode=dev` / `scans disable TYPE` instead.
+- User-authored Go plugins for new scan engines in v1 — user scans compose existing types plus extra catalog paths.
+- A mutating clone of hgDB cleanup-space.sh (that script deletes by default). Scan never deletes; shared ~/.cargo is never implied by a project artifact apply.
+- Bundled catalog entries for project-specific /tmp/hgdb-*; users add those via `catalog add --glob`.
+
+## Contracts
+
+### Public CLI
+
+freedisk [--json] [--catalog PATH] [--config DIR] <scan|why|catalog|scans|apply|help>. Non-TTY stdout defaults to JSON; TTY defaults to markdown unless --json. scan --mode=NAME (default full). Aliases: --quick, --dev. Built-in names: quick, dev, full. quick = volume + catalog paths tagged quick. dev = volume + worktrees + artifacts + catalog paths tagged dev. full = all enabled phases. User modes from `scans add`. catalog add|disable|unassign|list|path edits ~/.config/freedisk/catalog.yaml (or --config). scans list|disable|enable|add|remove edits which types run; does not delete disk data. apply <id>... requires ids; rejects --all; without --yes and not a TTY, exit 2 and delete nothing. `freedisk help` and `help <command>` print agent-oriented usage; unknown help topic exits nonzero.
+
+### Findings JSON
+
+Must validate against findings.schema.json. extra fields forbidden. reclaim.cmd is proposed text only.
+
+### Catalog merge
+
+Bundled catalog/macos-hotspots.yaml + user overlay at $XDG_CONFIG_HOME/freedisk/catalog.yaml else ~/.config/freedisk/catalog.yaml (or --config). add[] appends paths with optional scans:[mode,...] (default quick,dev,full). Adding an already-known path unions scans. disable[] omits a path from every mode (unknown disable is a no-op). unassign[] removes a path from listed modes only. disable_scans[] skips named phases even in full. modes.<name>.types lists phases for `scan --mode=<name>`. work_roots[] appends artifact-walk roots. Bundled known paths default to scans [quick,full]; bundled work_roots default to [dev,full]. glob:true path entries expand; zero matches skip (not an error). catalog add PATH --glob writes glob:true (for /tmp/proj-* scratch, examples/*/target, …).
+
+### Phase registration
+
+internal/scan.Register(Phase) so later phases do not edit run.go. Each phase has a stable Name (volume, known, drill, artifacts, worktrees, apple-sim, android-sim). quick runs volume+known; dev runs volume+known+artifacts+worktrees (known is filtered by path scans tags); full runs every enabled phase. Overlay disable_scans skips a phase. volume cannot be disabled. scan --mode=<user> runs overlay modes.<user>.types plus volume.
+
+### Deletion sink
+
+internal/apply is the only package that may delete. Path policy from internal/policy. Last scan ids from internal/scan persist file. No second matcher. Prefer reclaim.cmd owner commands (cargo clean, cargo cache --autoclean, git worktree prune/remove, npm/pnpm/uv prune) over rm. Refuse git-tracked paths, risk keep/never, in-flight worktrees (< worktree_inflight_hours), and deleting all of ~/.cargo. Print allocated size then delete (hgDB script pattern). Delete failure: nonzero, stop that id, do not continue as success.
+
+### hgDB cleanup-space.sh learnings
+
+External script /Users/ciprian/work_cip/holly_grail/hgDB/scripts/cleanup-space.sh. Encode the rules, do not copy the mutator. (1) Project artifacts vs shared caches: target/node_modules/.next/dist are rebuildable in-repo; ~/.cargo/registry and ~/.cargo/git affect every Rust project — risk ask, only as their own finding ids, never as a side effect of cleaning a repo. (2) Cargo target/ is often the largest reclaimable (hundreds of GB on a hot tree, and the expensive part of agent worktrees). Find target/ next to Cargo.toml at repo root, examples/*/target, sdks/*/target, and vendor/<crate>/target. Reclaim cmd: cargo clean in that tree. (3) rust vendor/ is SOURCE (vendor/paste/src). Do not classify cargo-vendor or Rails/Go vendor as Composer. Do not prune all vendor/ on the walk — only prune Composer vendor (parent composer.json); still record nested target/. Never propose deleting proptest-regressions/ or any git-tracked path. (4) JS extras beyond node_modules: .next, dist, .tsbuildinfo (file), .tsx-cache; also under examples/*/ and sdks/*/. (5) Worktrees: never rm -rf .claude/worktrees. Only leftover-worktree if git worktree list says prunable/gone AND older than worktree_inflight_hours (24), or dir mtime older than worktree_idle_days (14). Fresh agent checkouts are ask/keep. Reclaim: git worktree prune --expire 1.day or git worktree remove <path>. (6) /tmp/<project>-* test scratch is reclaimable only when the user (or overlay) listed a glob; do not wipe /tmp. catalog add supports --glob. Missing glob matches skip. (7) Prefer cargo cache --autoclean when cargo-cache exists; otherwise report ~/.cargo/registry/cache, registry/src, git as separate findings (git = ask). (8) freedisk --quick is volume+known paths, NOT this script's --quick (tier-1 target/ only). Help must say so. (9) Dry-run is scan. apply prints size. rm uses -- so names starting with - are not flags.
+
+### Side effects
+
+diskutil/du/simctl: OS binaries, no network. Overlay write: user config dir. Last-scan persist: $XDG_CACHE_HOME/freedisk/last-scan.json. apply: only after confirm.
+
+### Agent help
+
+`freedisk help` and `--help` print the same long usage: purpose (report-only); mode table (and that --quick is NOT cargo-target-only); catalog add/unassign/disable/--glob; scans list/disable/enable/add/remove; JSON-when-piped; apply rules (explicit ids, no --all, --yes on non-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes (0 report, 2 usage, 3 unknown id); copy-paste examples for catalog and scans. `help catalog`, `help scans`, `help scan` print those commands' Long text. Help never scans or deletes.
+
+## Existing Code Leverage
+
+- catalog/macos-hotspots.yaml — bundled path/artifact/API catalog; TASK-024 adds hgDB-derived rows, do not replace the file wholesale.
+- findings.schema.json — output contract.
+- RECIPE.md — scan order, markers, invariants (do not rewrite).
+- research/mole-patterns.md — owner commands, fail-closed if busy, simctl runtimeIdentifier, no auto-delete; Cargo git is ask not blanket-delete.
+- External: /Users/ciprian/work_cip/holly_grail/hgDB/scripts/cleanup-space.sh — rules in the hgDB contract; not a file in this repo.
+- README.md — replace “CLI is not built yet” when the binary exists (TASK-021).
+
+## Tasks
+
+### TASK-001: Create Go module and version package
+
+Initialize module path `github.com/CiprianSpiridon/free-disk-space` (this GitHub repo). Add internal/version with Version string default `0.0.0-dev` and a test that it is non-empty. No CLI yet.
+
+**Type:** infra  
+**Priority:** P0  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** none  
+**Review:** none
+
+**writeScope:**
+
+- `go.mod`
+- `internal/version/version.go`
+- `internal/version/version_test.go`
+
+**validateCommand:** `go test ./internal/version/ -count=1`
+
+**Acceptance Criteria:**
+
+- `go test ./internal/version/` passes and Version is non-empty.
+- go.mod module path is `github.com/CiprianSpiridon/free-disk-space`; `go test ./internal/missingpkg/` fails (package does not exist).
+
+### TASK-002: Findings types matching findings.schema.json
+
+Add internal/findings types for the JSON document: Report, Host, Volume, Finding, Risk, Reclaim. Risk is a string enum matching findings.schema.json. JSON tags must match the schema property names. Do not execute reclaim commands here.
+
+**Type:** feature  
+**Priority:** P0  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-001  
+**Review:** none
+
+**writeScope:**
+
+- `internal/findings/types.go`
+- `internal/findings/types_test.go`
+
+**validateCommand:** `go test ./internal/findings/ -count=1`
+
+**Acceptance Criteria:**
+
+- Marshal of a minimal Report includes required keys generated_at, host, volume, findings.
+- Unmarshal of risk `not-a-risk` is rejected or round-trips only after explicit validation fails.
+- Unknown extra top-level JSON field is not produced by Marshal (no leftover debug fields).
+
+### TASK-003: Load bundled catalog/macos-hotspots.yaml
+
+Read the existing catalog/macos-hotspots.yaml. Resolve search order: --catalog / FREEDISK_CATALOG / path relative to module root `catalog/macos-hotspots.yaml`. Expand `~`. Skip missing listed paths later; a missing catalog FILE is a hard error naming every path tried. Parse thresholds, path groups, artifacts (including file markers), glob:true, worktree_idle_days, worktree_inflight_hours (default 24 if absent).
+
+**Type:** feature  
+**Priority:** P0  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-001  
+**Review:** none
+
+**writeScope:**
+
+- `internal/catalog/load.go`
+- `internal/catalog/load_test.go`
+
+**validateCommand:** `go test ./internal/catalog/ -count=1 -run Load`
+
+**Acceptance Criteria:**
+
+- Loading the repo's catalog/macos-hotspots.yaml returns at least the android homebrew SDK path `/opt/homebrew/share/android-commandlinetools`.
+- Load of a nonexistent file returns an error that includes that path; a glob:true entry with zero matches is not a load error (empty expansion).
+- Does not follow a symlink catalog file into `/System` as success if we refuse symlink catalogs — or documents and tests that catalog file may be a regular file only.
+
+### TASK-004: User catalog overlay merge
+
+Document overlay schema in catalog/overlay.schema.yaml: add[] (path, optional risk, category, scans), disable[], unassign[] (path + from[]), disable_scans[], modes.<name>.types[], optional work_roots[]. Load from $XDG_CONFIG_HOME/freedisk/catalog.yaml else ~/.config/freedisk/catalog.yaml or --config. add appends (default scans quick,dev,full); add of an existing path unions scans. disable drops the path from every mode; unknown disable is a no-op. unassign subtracts listed modes only. ModePaths(mode) returns paths tagged for that mode. DisabledScans() returns disable_scans. Missing overlay file = bundled defaults only.
+
+**Type:** feature  
+**Priority:** P0  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-003  
+**Review:** none
+
+**writeScope:**
+
+- `internal/catalog/overlay.go`
+- `internal/catalog/overlay_test.go`
+- `catalog/overlay.schema.yaml`
+
+**validateCommand:** `go test ./internal/catalog/ -count=1 -run Overlay`
+
+**Acceptance Criteria:**
+
+- add of `~/custom-cache` with scans [dev] is in ModePaths("dev") with expanded home and absent from ModePaths("quick").
+- disable of a bundled path (e.g. ~/.npm) omits it from every ModePaths; disable of an unknown path is a no-op (no error, not added).
+- unassign ~/.npm from [quick] omits it from ModePaths("quick") but ModePaths("full") still contains it; disable_scans [drill] is returned by DisabledScans().
+
+### TASK-005: Allocated-byte sizer
+
+internal/size reports allocated bytes (st_blocks*512 / lstat) and optional apparent st_size. Missing path: size 0, ok=false, no panic. Never follow symlinks for the target leaf when measuring a directory walk.
+
+**Type:** feature  
+**Priority:** P0  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-001  
+**Review:** none
+
+**writeScope:**
+
+- `internal/size/du.go`
+- `internal/size/du_test.go`
+
+**validateCommand:** `go test ./internal/size/ -count=1`
+
+**Acceptance Criteria:**
+
+- A regular file's allocated size is >0 and is not taken from a fake large apparent-only value in tests.
+- Missing path returns allocated 0 and an is-missing flag without panic.
+
+### TASK-006: Path policy (never system roots)
+
+Absolute paths only; reject `..` as a component; reject control characters; deny prefixes from catalog thresholds.skip_system_prefixes (/System, /usr except /usr/local, /bin, /sbin, /private/var/vm, /dev, /net). Allow /usr/local, /tmp, /private/tmp (project scratch globs). Refuse deleting `$HOME/.cargo` as a whole (subpaths cache/src/git are decided at apply with risk). Used later by apply; scan still lists keep paths but apply uses this to refuse deletes.
+
+**Type:** feature  
+**Priority:** P0  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-001  
+**Review:** none
+
+**writeScope:**
+
+- `internal/policy/path.go`
+- `internal/policy/path_test.go`
+
+**validateCommand:** `go test ./internal/policy/ -count=1`
+
+**Acceptance Criteria:**
+
+- CanDelete(`/usr/local/Homebrew`) is allowed; CanDelete(`/usr/bin`) is refused.
+- CanDelete(`/System/Volumes/Data/foo`) is refused; CanDelete(`/tmp/proj-foo`) is allowed.
+- Relative `foo`, `/tmp/../etc`, and `$HOME/.cargo` (the directory itself) are refused.
+
+### TASK-007: Volume inventory from diskutil fixtures
+
+Parse diskutil apfs list (and optional df Data volume) into findings.Volume. Unit tests use a checked-in fixture string, not the live machine. Do not treat df / used bytes as container fullness.
+
+**Type:** feature  
+**Priority:** P0  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-002  
+**Review:** none
+
+**writeScope:**
+
+- `internal/scan/volume.go`
+- `internal/scan/volume_test.go`
+
+**validateCommand:** `go test ./internal/scan/ -count=1 -run Volume`
+
+**Acceptance Criteria:**
+
+- Fixture with Capacity In Use and Not Allocated fills in_use_bytes and free_bytes.
+- A parser given only `df /` snapshot numbers does not set in_use_bytes from the 17GB system snapshot when Data/container figures exist in the fixture.
+- Garbage diskutil output returns an error, not a zero-success volume.
+
+### TASK-008: Known-path scan (phase 1)
+
+Walk merged catalog path entries for the current mode: skip missing, skip overlay-disabled, skip entries whose scans tags do not include the current mode, expand glob:true (zero matches skip), size existing with internal/size. Emit findings with category/risk/reclaim from the YAML. Do not recurse except later drill. Sparse catalog entries set bytes_apparent when size reports a gap. ~/.cargo/git and ~/.cargo/registry/src stay risk ask even if listed. Phase name is `known`. Register as participating in quick and dev (path tags do the filtering).
+
+**Type:** feature  
+**Priority:** P1  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-004, TASK-005  
+**Review:** none
+
+**writeScope:**
+
+- `internal/scan/known.go`
+- `internal/scan/known_test.go`
+
+**validateCommand:** `go test ./internal/scan/ -count=1 -run Known`
+
+**Acceptance Criteria:**
+
+- Testdata tree with only ~/.npm/_cacache fake dir emits one finding in mode quick and does not error on missing ~/.rbenv.
+- Disabled overlay path is absent from findings; a path tagged only [dev] is absent from a quick-mode known scan; glob:true with no matches adds nothing and does not fail.
+- Does not walk into a nested node_modules under a known file path (known paths are the listed leaves/dirs only).
+
+### TASK-009: CLI router (no business logic)
+
+cmd/freedisk/main.go calls internal/cli.Execute. Root command `freedisk` with persistent flags --json, --catalog, --config. Subcommands register via cli.AddCommand from their own files later. Unknown command exits nonzero. Version from internal/version.
+
+**Type:** feature  
+**Priority:** P0  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-001  
+**Review:** none
+
+**writeScope:**
+
+- `cmd/freedisk/main.go`
+- `internal/cli/root.go`
+- `internal/cli/root_test.go`
+
+**validateCommand:** `go test ./internal/cli/ -count=1 -run Root`
+
+**Acceptance Criteria:**
+
+- `go run ./cmd/freedisk --help` exits 0 and prints the name freedisk.
+- `go run ./cmd/freedisk definitely-not-a-command` exits nonzero.
+- `go run ./cmd/freedisk version` or `--version` prints internal/version.Version.
+
+### TASK-010: JSON report encoder
+
+Encode findings.Report to JSON. Stable key order not required; required keys must exist; do not emit empty reclaim objects. Used by scan --json.
+
+**Type:** feature  
+**Priority:** P1  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-002  
+**Review:** none
+
+**writeScope:**
+
+- `internal/report/json.go`
+- `internal/report/json_test.go`
+
+**validateCommand:** `go test ./internal/report/ -count=1 -run JSON`
+
+**Acceptance Criteria:**
+
+- Encoded JSON unmarshals into a map containing generated_at, host, volume, findings.
+- A finding without Reclaim omits reclaim or sets it null — never a command that was executed.
+- Invalid UTF-8 in a path does not crash Encode (replace or escape).
+
+### TASK-011: Markdown report (RECIPE §11)
+
+Human report with Disk, Reclaimable, Ask first, Keep, Not present. risk keep/never excluded from Reclaimable table. not_present rendered even when empty as a line.
+
+**Type:** feature  
+**Priority:** P1  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-002  
+**Review:** none
+
+**writeScope:**
+
+- `internal/report/markdown.go`
+- `internal/report/markdown_test.go`
+
+**validateCommand:** `go test ./internal/report/ -count=1 -run Markdown`
+
+**Acceptance Criteria:**
+
+- Report with not_present ["conda"] contains a Not present section mentioning conda.
+- A keep-risk finding does not appear under Reclaimable.
+- Markdown includes container in_use/free from Volume.
+
+### TASK-012: scan command: --mode quick|dev|full|user, JSON/md, never deletes
+
+internal/scan/run.go runs registered phases. Each Phase has Name plus Quick/Dev bools. `scan --mode=NAME` (default full); aliases `--quick` and `--dev`. quick = volume+known; dev = volume+known+artifacts+worktrees; full = all enabled phases. If NAME is not quick|dev|full, resolve overlay modes.NAME.types (volume always included); unknown NAME exit 2. Skip phases listed in overlay DisabledScans (volume cannot be skipped). Register volume as Quick+Dev named `volume`; known as Quick+Dev named `known`. internal/cli/scan.go Long help must name modes, `catalog add --scans`, `scans disable`, that scan never deletes, and that --quick is volume+known paths (not cargo-target-only). Non-TTY stdout => JSON; TTY => markdown unless --json. Scan must not import internal/apply and must not call os.Remove. Persist hook can be a no-op interface until TASK-017.
+
+**Type:** feature  
+**Priority:** P1  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-007, TASK-008, TASK-009, TASK-010, TASK-011  
+**Review:** none
+
+**writeScope:**
+
+- `internal/cli/scan.go`
+- `internal/scan/run.go`
+- `internal/scan/run_test.go`
+
+**validateCommand:** `go test ./internal/scan/ ./internal/cli/ -count=1 -run 'TestRun|TestScan'`
+
+**Acceptance Criteria:**
+
+- `scan --quick` does not invoke a Quick=false stub; `scan --dev` does not invoke a Dev=false stub; DisabledScans containing a stub name skips that phase even in full.
+- Unknown `--mode=nope` and combining `--quick --dev` each exit 2 and run zero phases.
+- Scan package tests fail if run.go references os.Remove or internal/apply; non-TTY stdout is JSON.
+
+### TASK-013: Drill phase (≥1GiB children)
+
+Register a phase with Quick=false and Dev=false that du -d 1 equivalents on findings with catalog drill:true and size>=thresholds.drill_bytes. init() Register only — do not edit run.go. Partial timeout discards that node's children.
+
+**Type:** feature  
+**Priority:** P2  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-012, TASK-005  
+**Review:** none
+
+**writeScope:**
+
+- `internal/scan/drill.go`
+- `internal/scan/drill_test.go`
+
+**validateCommand:** `go test ./internal/scan/ -count=1 -run Drill`
+
+**Acceptance Criteria:**
+
+- A testdata dir over the test-injected small threshold emits child findings; a tiny dir does not.
+- Registering drill does not require modifying run.go (phase is picked up via Register).
+- Simulated timeout on a node adds nothing for that node rather than a partial child list.
+
+### TASK-014: Artifact walk (node_modules, target, pyvenv.cfg, vendor)
+
+Phase with Quick=false, Dev=true: pruned walk of merged work_roots. Record catalog artifact dirs AND files (.tsbuildinfo, .tsx-cache, .next, dist, node_modules, target). target/ only next to Cargo.toml, including examples/*/target, sdks/*/target, vendor/<crate>/target. vendor/ itself only if parent has composer.json — cargo-vendor and Rails/Go vendor are keep (source). Do not prune all vendor/: prune Composer vendor; walk cargo-vendor to find nested target/. Skip any path `git ls-files` tracks (proptest-regressions/, committed dist). Prune into node_modules and recorded target/. Artifact-named dir is not a project container. Reclaim for target: `cargo clean` in the parent tree. Participates in --dev and full, not --quick.
+
+**Type:** feature  
+**Priority:** P2  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-012  
+**Review:** none
+
+**writeScope:**
+
+- `internal/scan/artifacts.go`
+- `internal/scan/artifacts_test.go`
+
+**validateCommand:** `go test ./internal/scan/ -count=1 -run Artifact`
+
+**Acceptance Criteria:**
+
+- Testdata app/node_modules is one finding on --dev and full; nested node_modules inside it is not a second walk target; --quick omits it; examples/foo/.tsx-cache and .tsbuildinfo are recorded.
+- vendor/ next to composer.json is emitted; vendor/paste/src with no composer.json is not; vendor/paste/target next to Cargo.toml is a rebuildable finding.
+- Directory named env without pyvenv.cfg is not a venv; a git-tracked `dist/` in testdata repo is risk keep (not rebuildable).
+
+### TASK-015: Worktree leftovers (git, Claude, Grok)
+
+Phase with Quick=false, Dev=true: size <repo>/.claude/worktrees, ~/.grok/worktrees, .ulpi/worktrees, git worktree list --porcelain. Missing roots append not_present, do not fail. Count field = number of child worktrees. Never emit reclaim `rm -rf` of the whole .claude/worktrees directory. leftover-worktree only if: git says prunable/gone AND mtime older than worktree_inflight_hours (24), OR dir mtime older than worktree_idle_days (14). Newer in-flight agent trees are ask or keep. reclaim.cmd: `git worktree prune --expire 1.day` or `git worktree remove <path>`. Participates in --dev and full, not --quick.
+
+**Type:** feature  
+**Priority:** P2  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-012  
+**Review:** none
+
+**writeScope:**
+
+- `internal/scan/worktrees.go`
+- `internal/scan/worktrees_test.go`
+
+**validateCommand:** `go test ./internal/scan/ -count=1 -run Worktree`
+
+**Acceptance Criteria:**
+
+- Testdata with two dirs under .claude/worktrees emits parent or children; reclaim.cmd does not contain `rm -rf` of the worktrees root.
+- Absent ~/.grok/worktrees adds a not_present entry rather than error.
+- A worktree dir with mtime now is not risk leftover-worktree; `scan --dev` still reports it (ask/keep); `scan --quick` omits worktree findings.
+
+### TASK-016: Apple + Android simulator inventory
+
+Phase with Quick=false, Dev=false (full scan only). Apple: parse simctl JSON fixtures; join devices to runtimes on runtimeIdentifier not display name. Android: size /opt/homebrew/share/android-commandlinetools if present in testdata overlay; zero AVDs still reports system-images as unused-runtime. which emulator missing is not 'SDK absent'.
+
+**Type:** feature  
+**Priority:** P2  
+**Effort:** L  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-012  
+**Review:** none
+
+**writeScope:**
+
+- `internal/scan/apple_sim.go`
+- `internal/scan/android_sim.go`
+- `internal/scan/sim_test.go`
+
+**validateCommand:** `go test ./internal/scan/ -count=1 -run Sim`
+
+**Acceptance Criteria:**
+
+- Fixture where runtime display is iOS 26.4.1 and device group is iOS 26.4 still joins on runtimeIdentifier (no orphan delete recommendation from name mismatch).
+- Fixture with system-images and empty avd list still emits the image finding; not_present includes android AVDs.
+- Missing simctl binary: skip Apple sims, add not_present, do not fail the whole scan.
+
+### TASK-017: Persist last scan for apply/why
+
+Write findings.Report to $XDG_CACHE_HOME/freedisk/last-scan.json (or --config cache dir). Read back for apply/why. Corrupt JSON returns a typed error. Scan never deletes this file's targets.
+
+**Type:** feature  
+**Priority:** P2  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-012  
+**Review:** none
+
+**writeScope:**
+
+- `internal/scan/persist.go`
+- `internal/scan/persist_test.go`
+
+**validateCommand:** `go test ./internal/scan/ -count=1 -run Persist`
+
+**Acceptance Criteria:**
+
+- Round-trip a Report through Write/Read in a temp dir.
+- Read of truncated JSON returns an error (not a empty success report).
+- Default path uses XDG_CACHE_HOME when set in the test env.
+
+### TASK-018: catalog add/unassign/disable/list/path
+
+Subcommand group that only edits the user overlay file. `catalog add PATH [--scans quick,dev,full] [--risk ask --category user] [--glob]` (default --scans quick,dev,full; add of a known path unions scans; --glob sets glob:true for /tmp/proj-* and similar). `catalog unassign PATH --from MODE[,MODE]`. `catalog disable PATH`. `catalog list [--json]`. `catalog path`. Creates ~/.config/freedisk/catalog.yaml (or --config) on first write. Does not scan or delete disk data. Long help must show add/unassign/disable and `--glob` examples.
+
+**Type:** feature  
+**Priority:** P1  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-004, TASK-009  
+**Review:** none
+
+**writeScope:**
+
+- `internal/cli/catalog.go`
+- `internal/cli/catalog_test.go`
+
+**validateCommand:** `go test ./internal/cli/ -count=1 -run Catalog`
+
+**Acceptance Criteria:**
+
+- `catalog add` of a temp path with `--scans dev` creates overlay; ModePaths(dev) includes it; ModePaths(quick) does not; `add --glob '/tmp/proj-*'` stores glob:true.
+- `catalog unassign PATH --from dev` then ModePaths(dev) omits it; `catalog disable PATH` omits it from every mode; `unassign --from nope` exits 2 and does not write.
+- `catalog` with no subcommand and `catalog add` with no PATH each exit nonzero and do not write a file.
+
+### TASK-019: apply explicit ids only (never automatic)
+
+internal/apply/exec.go is the only delete sink: validate policy, load last scan, resolve ids. cli/apply.go: `apply <id> [<id>...] [--yes]`. Reject --all and empty args (exit 2). Unknown id exit 3. Refuse risk keep/never, git-tracked paths, in-flight worktrees, and the ~/.cargo directory itself. Prefer reclaim.cmd owner command (cargo clean, cargo cache --autoclean, git worktree prune/remove). Print allocated size then act. Use rm -- (leading-dash names). Non-TTY without --yes: exit 2, no deletes. TTY: confirm each. Delete failure: nonzero for that id. Never implied by a project finding: do not touch ~/.cargo.
+
+**Type:** feature  
+**Priority:** P2  
+**Effort:** L  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-006, TASK-012, TASK-017  
+**Review:** none
+
+**writeScope:**
+
+- `internal/cli/apply.go`
+- `internal/apply/exec.go`
+- `internal/apply/exec_test.go`
+
+**validateCommand:** `go test ./internal/apply/ ./internal/cli/ -count=1 -run Apply`
+
+**Acceptance Criteria:**
+
+- apply with zero ids exits 2 and does not call remove; apply --all is rejected and does not delete.
+- Non-TTY apply with a valid id and no --yes exits 2; testdata file still exists.
+- apply --yes of a git-tracked file in a testdata git repo exits 2 and the file remains; apply of $HOME/.cargo as the path exits 2.
+
+### TASK-020: why: top reclaimable from last scan
+
+`freedisk why [--json] [--limit N]` reads last-scan and prints the largest findings with risk safe-cache|rebuildable|leftover-worktree|unused-runtime|ask. Missing last scan: message, exit 0, no scan of $HOME unless --rescan is added (do not add --rescan in this task).
+
+**Type:** feature  
+**Priority:** P2  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-012, TASK-017  
+**Review:** none
+
+**writeScope:**
+
+- `internal/cli/why.go`
+- `internal/cli/why_test.go`
+
+**validateCommand:** `go test ./internal/cli/ -count=1 -run Why`
+
+**Acceptance Criteria:**
+
+- why on a fixture last-scan orders by bytes descending and omits keep.
+- why with no last-scan file exits 0 and prints a message containing last-scan (not a stack trace).
+- why does not call apply or os.Remove.
+
+### TASK-021: Agent-facing AGENTS.md and README usage
+
+Add repo-root AGENTS.md: how agents run `freedisk help`, scan --json, --mode quick|dev|full, `catalog add --scans`, `catalog unassign --from`, `scans disable` / `scans add`, never apply unless the human named ids, no TUI. Update README.md to show build/run instead of “CLI is not built yet”. Do not rewrite RECIPE.md.
+
+**Type:** docs  
+**Priority:** P3  
+**Effort:** S  
+**Agent:** general-purpose  
+**Depends on:** TASK-012, TASK-018, TASK-019, TASK-022, TASK-023  
+**Review:** none
+
+**writeScope:**
+
+- `AGENTS.md`
+- `README.md`
+
+**validateCommand:** `python3 -c "import pathlib; a=pathlib.Path('AGENTS.md').read_text(); r=pathlib.Path('README.md').read_text(); assert 'freedisk help' in a and 'catalog add' in a and 'scans disable' in a and 'scan --dev' in a; assert 'apply' in a.lower(); assert 'go run ./cmd/freedisk' in r; assert 'CLI is not built yet' not in r"`
+
+**Acceptance Criteria:**
+
+- AGENTS.md documents `freedisk help`, `scan --json`, `scan --dev`, `catalog add`, `scans disable`, and that apply is never automatic.
+- README.md contains `go run ./cmd/freedisk` and does not say the CLI is not built yet.
+- AGENTS.md states agents must not run apply unless the human listed finding ids.
+
+### TASK-022: Agent-oriented help command
+
+internal/cli/help.go registers `help [command]` and a custom root help function so `freedisk help` and `freedisk --help` print the same long agent guide. The guide MUST include these copy-paste lines: `freedisk catalog add PATH --scans quick,dev`, `freedisk catalog unassign PATH --from quick`, `freedisk catalog disable PATH`, `freedisk scans list`, `freedisk scans disable artifacts`, `freedisk scans add rust --types artifacts,worktrees`, `freedisk scan --mode=rust --json`, `freedisk scan --dev --json`, `freedisk catalog add '/tmp/proj-*' --glob --scans dev`. Also: purpose (report-only); mode table; that --quick is NOT cargo-target-only; JSON-when-piped; apply rules (explicit ids, no --all, --yes off-TTY, no git-tracked, no in-flight worktrees, no whole ~/.cargo); exit codes 0/2/3. `help catalog` and `help scans` print those commands' Long text. Help must not call scan or apply.
+
+**Type:** feature  
+**Priority:** P1  
+**Effort:** S  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-009, TASK-012, TASK-018, TASK-023  
+**Review:** none
+
+**writeScope:**
+
+- `internal/cli/help.go`
+- `internal/cli/help_test.go`
+
+**validateCommand:** `go test ./internal/cli/ -count=1 -run Help`
+
+**Acceptance Criteria:**
+
+- `help` exits 0 and contains `catalog add`, `unassign`, `--glob`, `scans disable`, `scans add`, `--mode`, `--json`, `apply`, `never`, and `git-tracked` or `tracked`.
+- `help catalog` mentions `--scans`, `--from`, and `--glob`; `help scans` mentions `disable` and `add --types`; `help scan` mentions quick, dev, full, that --quick is not cargo-target-only, and that scan does not delete.
+- `help definitely-not-a-command` exits nonzero and does not invoke a scan.
+
+### TASK-023: scans list/disable/enable/add/remove
+
+Subcommand group that only edits overlay disable_scans and modes. Does not delete disk data. `scans list [--json]` prints built-in types (volume, known, drill, artifacts, worktrees, apple-sim, android-sim) with enabled bool, plus user modes. `scans disable TYPE` / `enable TYPE` (volume disable exits 2). `scans add NAME --types TYPE[,TYPE]` writes modes.NAME; NAME must not be quick|dev|full or a phase name. `scans remove NAME` deletes a user mode only (removing quick/dev/full/volume exits 2). After add, `scan --mode=NAME` runs those types plus volume. Long help must list the examples.
+
+**Type:** feature  
+**Priority:** P1  
+**Effort:** M  
+**Agent:** go-cli-senior-engineer  
+**Depends on:** TASK-004, TASK-009, TASK-012  
+**Review:** none
+
+**writeScope:**
+
+- `internal/cli/scans.go`
+- `internal/cli/scans_test.go`
+
+**validateCommand:** `go test ./internal/cli/ -count=1 -run Scans`
+
+**Acceptance Criteria:**
+
+- `scans list --json` includes artifacts with enabled true; `scans disable artifacts` then list shows enabled false; `enable` restores; `disable volume` exits 2 and does not write.
+- `scans add rust --types artifacts,worktrees` makes a user mode; a --mode=rust test run invokes stubs named artifacts and worktrees and not drill; `scans remove rust` then `--mode=rust` exits 2.
+- `scans remove quick` and `scans add artifacts --types known` (name collides with a built-in type) each exit 2 and leave overlay unchanged.
+
+### TASK-024: Add hgDB cleanup-space rows to bundled catalog
+
+Additive edit of catalog/macos-hotspots.yaml only — do not delete existing rows, do not add /tmp/hgdb-*. Add artifact names `.tsx-cache` and `.tsbuildinfo` (file). Split cargo: `~/.cargo/registry/cache` (safe-cache, reclaim cargo cache --autoclean), `~/.cargo/registry/src` (ask), keep `~/.cargo/git` as ask (not safe-cache). Add thresholds.worktree_inflight_hours: 24. Note on vendor: cargo-vendor source is keep; nested target/ is rebuildable. Reclaim for rust target remains cargo clean.
+
+**Type:** chore  
+**Priority:** P1  
+**Effort:** S  
+**Agent:** general-purpose  
+**Depends on:** TASK-003  
+**Review:** none
+
+**writeScope:**
+
+- `catalog/macos-hotspots.yaml`
+
+**validateCommand:** `python3 -c "from pathlib import Path; t=Path('catalog/macos-hotspots.yaml').read_text(); assert '.tsx-cache' in t and '.tsbuildinfo' in t and 'registry/cache' in t and 'worktree_inflight_hours' in t; assert '/tmp/hgdb' not in t; i=t.find('~/.cargo/git'); assert i!=-1 and 'ask' in t[i:i+120]; assert '/opt/homebrew/share/android-commandlinetools' in t"`
+
+**Acceptance Criteria:**
+
+- YAML contains `.tsx-cache`, `.tsbuildinfo`, `registry/cache`, and `worktree_inflight_hours`.
+- `~/.cargo/git` risk is ask (not safe-cache); `/tmp/hgdb` is not present.
+- Existing android homebrew SDK path row still present.
+
+## Failure Modes
+
+- Empty apply args or --all: exit 2, filesystem unchanged.
+- Unknown apply id: exit 3, filesystem unchanged.
+- Missing bundled catalog file: exit 1 naming the paths tried; do not scan $HOME blindly.
+- EPERM/TCC on a path: append to unreadable[], continue, exit 0.
+- Corrupt last-scan.json: apply/why print a clear error; do not delete.
+- Non-TTY apply without --yes: exit 2 (agents must not hang on a prompt).
+- Unknown --mode or combining --quick with --dev: exit 2, no scan.
+- help of an unknown topic: exit 2, no scan.
+- catalog unassign --from unknown mode, or catalog add with no PATH: exit 2, overlay unchanged.
+- scans disable unknown type, scans disable volume, scans remove a built-in name (quick/dev/full): exit 2, overlay unchanged.
+- scans add with empty --types or duplicate name: exit 2.
+- apply of a git-tracked path, an in-flight worktree, or ~/.cargo as a whole: exit 2, filesystem unchanged.
+- catalog add glob with zero matches: overlay still writes; later scan skips (not a hard error).
+
+## Ship Cut
+
+If execution stops after TASK-012: `go run ./cmd/freedisk scan --quick --json` prints schema-valid JSON from the bundled catalog + overlay merge, never deletes. `--dev` is a valid flag then but only runs volume+known(filtered) until TASK-014/015 register. Catalog CLI (018), scans CLI (023), apply (019), and agent help (022) can land after.
+
+## Test Coverage Map
+
+- Unit: catalog merge, glob zero-match skip, overlay disable unknown, unassign from one mode keeps other modes, disable_scans skips a phase, size allocated vs apparent, path policy, volume fixture parse, JSON required keys, markdown Not present, scan --quick omits artifact walk, --dev includes worktree/artifact stubs and skips drill, rust vendor src keep vs nested target, git-tracked skip, in-flight worktree not leftover, apply refuses --all and git-tracked.
+- CLI: help lists catalog add/unassign, scans disable/add, modes, never-delete rules; unknown subcommand and unknown help topic nonzero; scan --json on pipe.
+- No live $HOME walks in unit tests — use testdata trees.
+
+## Execution Summary
+
+- Tasks: 24
+- Layers: 8
+- Critical path (8): TASK-001 → TASK-003 → TASK-004 → TASK-008 → TASK-012 → TASK-017 → TASK-019 → TASK-021
+- Review default: none
+
+## Task Dependencies
+
+| Task | Depends on |
+| --- | --- |
+| TASK-001 | — |
+| TASK-002 | TASK-001 |
+| TASK-003 | TASK-001 |
+| TASK-004 | TASK-003 |
+| TASK-005 | TASK-001 |
+| TASK-006 | TASK-001 |
+| TASK-007 | TASK-002 |
+| TASK-008 | TASK-004, TASK-005 |
+| TASK-009 | TASK-001 |
+| TASK-010 | TASK-002 |
+| TASK-011 | TASK-002 |
+| TASK-012 | TASK-007, TASK-008, TASK-009, TASK-010, TASK-011 |
+| TASK-013 | TASK-012, TASK-005 |
+| TASK-014 | TASK-012 |
+| TASK-015 | TASK-012 |
+| TASK-016 | TASK-012 |
+| TASK-017 | TASK-012 |
+| TASK-018 | TASK-004, TASK-009 |
+| TASK-019 | TASK-006, TASK-012, TASK-017 |
+| TASK-020 | TASK-012, TASK-017 |
+| TASK-021 | TASK-012, TASK-018, TASK-019, TASK-022, TASK-023 |
+| TASK-022 | TASK-009, TASK-012, TASK-018, TASK-023 |
+| TASK-023 | TASK-004, TASK-009, TASK-012 |
+| TASK-024 | TASK-003 |

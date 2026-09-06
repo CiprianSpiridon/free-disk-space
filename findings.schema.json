@@ -1,0 +1,105 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://freedisk.local/findings.schema.json",
+  "title": "FreeDiskSpace scan output",
+  "description": "Contract for a macOS disk audit. Agents and the future CLI must emit this.",
+  "type": "object",
+  "required": ["generated_at", "host", "volume", "findings"],
+  "additionalProperties": false,
+  "properties": {
+    "generated_at": { "type": "string", "format": "date-time" },
+    "host": {
+      "type": "object",
+      "required": ["os", "home"],
+      "properties": {
+        "os": { "const": "macos" },
+        "home": { "type": "string" },
+        "arch": { "type": "string" }
+      }
+    },
+    "volume": {
+      "type": "object",
+      "description": "Ground truth from diskutil apfs list, not df /",
+      "required": ["container_bytes", "in_use_bytes", "free_bytes"],
+      "properties": {
+        "container_bytes": { "type": "integer", "minimum": 0 },
+        "in_use_bytes": { "type": "integer", "minimum": 0 },
+        "free_bytes": { "type": "integer", "minimum": 0 },
+        "data_volume_used_bytes": { "type": "integer" },
+        "df_root_used_bytes": {
+          "type": "integer",
+          "description": "df / — sealed snapshot; do not use as fullness"
+        },
+        "snapshots": { "type": "array", "items": { "type": "string" } },
+        "swap": { "type": "string" }
+      }
+    },
+    "unreadable": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Paths skipped for EPERM/TCC"
+    },
+    "not_present": {
+      "type": "array",
+      "items": { "type": "string" },
+      "description": "Looked-for classes that were absent (conda, rbenv, android AVDs, …)"
+    },
+    "findings": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/finding" }
+    }
+  },
+  "$defs": {
+    "risk": {
+      "type": "string",
+      "enum": [
+        "safe-cache",
+        "rebuildable",
+        "leftover-worktree",
+        "unused-runtime",
+        "ask",
+        "keep",
+        "never"
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "required": ["id", "path", "bytes", "category", "risk"],
+      "additionalProperties": false,
+      "properties": {
+        "id": { "type": "string", "minLength": 1 },
+        "path": { "type": "string", "minLength": 1 },
+        "bytes": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Allocated bytes (du / st_blocks*512)"
+        },
+        "bytes_apparent": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "st_size / ls -l; set for sparse VM files"
+        },
+        "category": { "type": "string" },
+        "risk": { "$ref": "#/$defs/risk" },
+        "last_used": {
+          "type": "string",
+          "description": "ISO date or simctl lastBootedAt"
+        },
+        "why": { "type": "string" },
+        "count": {
+          "type": "integer",
+          "description": "e.g. number of worktrees inside this folder"
+        },
+        "reclaim": {
+          "type": "object",
+          "description": "Proposed command only. Scan never executes this. apply requires explicit human-named ids.",
+          "required": ["cmd"],
+          "properties": {
+            "cmd": { "type": "string" },
+            "dry_run": { "type": "string" }
+          }
+        }
+      }
+    }
+  }
+}

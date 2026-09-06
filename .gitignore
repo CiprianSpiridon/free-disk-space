@@ -1,0 +1,24 @@
+# Local agent skill copies — not this product
+.agents/
+.claude/
+skills-lock.json
+
+# One-off audit dumps from research on a personal Mac
+.scan-*
+
+# Python
+**/__pycache__/
+*.pyc
+
+# OS / editor
+.DS_Store
+.idea/
+.vscode/
+
+# Go build
+/freedisk
+/cmd/freedisk/freedisk
+*.exe
+*.test
+*.out
+vendor/

@@ -1,0 +1,302 @@
+# Known macOS paths the CLI should size if they exist.
+# Paths starting with ~ expand to the current user home.
+# Glob: if `glob` is true, expand with the shell / glob crate.
+# risk: safe-cache | rebuildable | leftover-worktree | unused-runtime | ask | keep | never
+# risk never implies auto-delete. Scan never mutates. apply requires explicit ids.
+#
+# Measure allocated bytes (du / st_blocks*512), never ls -l size.
+# Skip missing paths. Never follow symlinks. Never require sudo.
+
+version: 1
+os: macos
+
+# Phase 0 is volume inventory, not paths. See NOTES.md.
+
+# --- Phase 1: O(1) existence + du -sh ---
+
+home:
+  - { path: "~/Library", category: library-root, risk: keep, drill: true }
+  - { path: "~/Applications", category: apps, risk: keep }
+  - { path: "~/Desktop", category: user-files, risk: keep }
+  - { path: "~/Documents", category: user-files, risk: keep }
+  - { path: "~/Downloads", category: user-files, risk: ask }
+  - { path: "~/Movies", category: user-files, risk: keep }
+  - { path: "~/Music", category: user-files, risk: keep }
+  - { path: "~/Pictures", category: user-files, risk: keep }
+  - { path: "~/Public", category: user-files, risk: keep }
+  - { path: "~/.Trash", category: trash, risk: safe-cache, reclaim: "rm -rf ~/.Trash/*" }
+
+work_roots:
+  # Depth-1 du of each existing root. Also used as artifact-walk roots.
+  - { path: "~/work", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/work_cip", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/work_mumzworld", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/src", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/Projects", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/dev", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/code", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/go", category: go-workspace, risk: rebuildable }
+  - { path: "~/Desktop", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/Documents", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/Downloads", category: work, risk: keep, walk_artifacts: true }
+
+system_wide:
+  - { path: "/Applications", category: apps, risk: keep, drill: true, glob_children: "*.app" }
+  - { path: "/opt/homebrew", category: homebrew, risk: ask, reclaim: "brew cleanup -s" }
+  - { path: "/opt/homebrew/Cellar", category: homebrew, risk: ask }
+  - { path: "/opt/homebrew/Caskroom", category: homebrew, risk: ask }
+  - { path: "/usr/local/Homebrew", category: homebrew-intel, risk: ask }
+  - { path: "/usr/local/Cellar", category: homebrew-intel, risk: ask }
+  - { path: "/Library/Developer", category: xcode-system, risk: ask, drill: true }
+  - { path: "/Library/Developer/CoreSimulator", category: simulators, risk: unused-runtime, drill: true }
+  - { path: "/Library/Developer/CoreSimulator/Volumes", category: simulator-runtimes, risk: unused-runtime }
+  - { path: "/Library/Developer/CommandLineTools", category: xcode-clt, risk: keep }
+
+library:
+  - { path: "~/Library/Containers", category: containers, risk: ask, drill: true }
+  - { path: "~/Library/Caches", category: caches, risk: ask, drill: true }
+  - { path: "~/Library/Application Support", category: app-support, risk: ask, drill: true }
+  - { path: "~/Library/Developer", category: xcode-user, risk: ask, drill: true }
+  - { path: "~/Library/Preferences", category: preferences, risk: keep, drill: true, note: "Unusually large on this machine (11G); always drill." }
+  - { path: "~/Library/Logs", category: logs, risk: safe-cache }
+  - { path: "~/Library/Group Containers", category: group-containers, risk: ask }
+  - { path: "~/Library/pnpm", category: pnpm-store, risk: safe-cache, reclaim: "pnpm store prune" }
+  - { path: "~/Library/Python", category: python-user, risk: rebuildable }
+  - { path: "~/Library/Mobile Documents", category: icloud, risk: keep, note: "iCloud; du is not on-disk if optimized." }
+
+xcode:
+  - { path: "/Applications/Xcode.app", category: xcode-app, risk: keep }
+  - { path: "~/Library/Developer/Xcode/DerivedData", category: xcode-deriveddata, risk: safe-cache, reclaim: "rm -rf ~/Library/Developer/Xcode/DerivedData" }
+  - { path: "~/Library/Developer/Xcode/Archives", category: xcode-archives, risk: ask }
+  - { path: "~/Library/Developer/Xcode/iOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime, drill: true }
+  - { path: "~/Library/Developer/Xcode/watchOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime }
+  - { path: "~/Library/Developer/Xcode/tvOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime }
+  - { path: "~/Library/Developer/CoreSimulator", category: simulator-devices, risk: unused-runtime, drill: true }
+  - { path: "~/Library/Developer/CoreSimulator/Devices", category: simulator-devices, risk: unused-runtime }
+  - { path: "~/Library/Developer/CoreSimulator/Caches", category: simulator-cache, risk: safe-cache }
+  - { path: "~/Library/Caches/org.swift.swiftpm", category: swiftpm-cache, risk: safe-cache }
+  - { path: "~/Library/Caches/CocoaPods", category: cocoapods-cache, risk: safe-cache, reclaim: "pod cache clean --all" }
+  - { path: "~/.cocoapods", category: cocoapods, risk: safe-cache }
+  - { path: "~/.swiftpm", category: swiftpm, risk: safe-cache }
+
+android:
+  - { path: "~/Library/Android/sdk", category: android-sdk, risk: unused-runtime, drill: true }
+  - { path: "~/Library/Android/sdk/system-images", category: android-system-images, risk: unused-runtime }
+  - { path: "~/.android", category: android, risk: unused-runtime }
+  - { path: "~/.android/avd", category: android-avds, risk: unused-runtime, drill: true }
+  # Homebrew cask android-commandlinetools — THIS is where the SDK was on this Mac
+  - { path: "/opt/homebrew/share/android-commandlinetools", category: android-sdk-homebrew, risk: unused-runtime, drill: true }
+  - { path: "/opt/homebrew/share/android-commandlinetools/system-images", category: android-system-images, risk: unused-runtime, drill: true }
+  - { path: "/opt/homebrew/share/android-commandlinetools/emulator", category: android-emulator, risk: unused-runtime }
+  - { path: "/opt/homebrew/Caskroom/android-commandlinetools", category: android-cask, risk: unused-runtime }
+  - { path: "/opt/homebrew/Caskroom/android-platform-tools", category: android-platform-tools, risk: ask }
+  - { path: "/usr/local/share/android-sdk", category: android-sdk-intel-brew, risk: unused-runtime }
+  - { path: "~/Library/Application Support/Google/AndroidStudio", category: android-studio, risk: ask }
+  - { path: "/Applications/Android Studio.app", category: android-studio-app, risk: keep }
+  - { path: "~/Library/Genymobile", category: genymotion, risk: unused-runtime }
+  - { path: "/Applications/Genymotion.app", category: genymotion, risk: unused-runtime }
+  - { path: "/Applications/BlueStacks.app", category: bluestacks, risk: unused-runtime }
+
+docker_vms:
+  - { path: "~/Library/Containers/com.docker.docker", category: docker, risk: ask, sparse: true }
+  - { path: "~/Library/Containers/com.docker.docker/Data/vms", category: docker-vm, risk: ask, sparse: true }
+  - { path: "~/Library/Containers/com.docker.docker/Data/vms/0/data/Docker.raw", category: docker-raw, risk: ask, sparse: true, note: "ls size is apparent; du is allocated." }
+  - { path: "~/.docker", category: docker-config, risk: keep }
+  - { path: "~/.colima", category: colima, risk: ask }
+  - { path: "~/.lima", category: lima, risk: ask }
+  - { path: "~/.orbstack", category: orbstack, risk: ask }
+  - { path: "~/Library/Caches/colima", category: colima-cache, risk: safe-cache }
+
+node:
+  - { path: "~/.npm", category: npm-cache, risk: safe-cache, reclaim: "npm cache clean --force" }
+  - { path: "~/.npm/_cacache", category: npm-cache, risk: safe-cache, reclaim: "npm cache clean --force" }
+  - { path: "~/.nvm", category: nvm, risk: unused-runtime, drill: true }
+  - { path: "~/.nvm/versions/node", category: nvm-versions, risk: unused-runtime, drill: true }
+  - { path: "~/.bun", category: bun, risk: safe-cache }
+  - { path: "~/.bun/install/cache", category: bun-cache, risk: safe-cache, reclaim: "bun pm cache rm" }
+  - { path: "~/Library/Caches/pnpm", category: pnpm-cache, risk: safe-cache }
+  - { path: "~/Library/Caches/Yarn", category: yarn-cache, risk: safe-cache, reclaim: "yarn cache clean" }
+  - { path: "~/.yarn", category: yarn, risk: safe-cache }
+  - { path: "~/.pnpm-store", category: pnpm-store, risk: safe-cache }
+  - { path: "~/.pnpm-state", category: pnpm, risk: keep }
+
+python:
+  - { path: "~/.cache/uv", category: uv-cache, risk: safe-cache, reclaim: "uv cache clean" }
+  - { path: "~/.local/share/uv", category: uv-tools, risk: ask }
+  - { path: "~/Library/Caches/pip", category: pip-cache, risk: safe-cache, reclaim: "pip3 cache purge" }
+  - { path: "~/.cache/pip", category: pip-cache, risk: safe-cache }
+  - { path: "~/.cache/huggingface", category: huggingface, risk: ask }
+  - { path: "~/Library/Caches/huggingface", category: huggingface, risk: ask }
+  - { path: "~/Library/Caches/pypoetry", category: poetry-cache, risk: safe-cache }
+  - { path: "~/.pyenv", category: pyenv, risk: unused-runtime }
+  - { path: "~/.conda", category: conda, risk: unused-runtime }
+  - { path: "~/.miniconda", category: conda, risk: unused-runtime }
+  - { path: "~/.miniconda3", category: conda, risk: unused-runtime }
+  - { path: "~/miniconda3", category: conda, risk: unused-runtime }
+  - { path: "~/anaconda3", category: conda, risk: unused-runtime }
+  - { path: "~/.virtualenvs", category: python-venvs, risk: rebuildable }
+  - { path: "~/.local/share/virtualenvs", category: pipenv, risk: rebuildable }
+  - { path: "~/.local/pipx", category: pipx, risk: ask }
+
+rust:
+  - { path: "~/.cargo", category: cargo, risk: ask, drill: true }
+  - { path: "~/.cargo/registry", category: cargo-registry, risk: safe-cache }
+  - { path: "~/.cargo/git", category: cargo-git, risk: safe-cache }
+  - { path: "~/.rustup", category: rustup, risk: unused-runtime, drill: true }
+  - { path: "~/.rustup/toolchains", category: rust-toolchains, risk: unused-runtime, drill: true }
+
+go_java_php_ruby:
+  - { path: "~/go/pkg", category: go-modcache, risk: safe-cache, reclaim: "go clean -modcache" }
+  - { path: "~/Library/Caches/go-build", category: go-build, risk: safe-cache, reclaim: "go clean -cache" }
+  - { path: "~/.gradle", category: gradle, risk: safe-cache }
+  - { path: "~/.gradle/caches", category: gradle-cache, risk: safe-cache }
+  - { path: "~/.m2", category: maven, risk: safe-cache }
+  - { path: "~/.composer", category: composer, risk: safe-cache }
+  - { path: "~/Library/Caches/composer", category: composer-cache, risk: safe-cache }
+  - { path: "~/.gem", category: ruby-gems, risk: ask }
+  - { path: "~/.bundle", category: ruby-bundle, risk: safe-cache }
+  - { path: "~/.pub-cache", category: dart-pub, risk: safe-cache }
+  - { path: "~/.ccache", category: ccache, risk: safe-cache }
+
+ai_local:
+  - { path: "~/.ollama", category: ollama, risk: ask }
+  - { path: "~/.ollama/models", category: ollama-models, risk: ask }
+  - { path: "~/.lmstudio", category: lmstudio, risk: ask }
+  - { path: "~/.lmstudio/models", category: lmstudio-models, risk: ask }
+  - { path: "~/Library/Application Support/LM Studio", category: lmstudio, risk: ask }
+
+agent_clis:
+  - { path: "~/.grok", category: grok, risk: ask, drill: true }
+  - { path: "~/.grok/worktrees", category: grok-worktrees, risk: leftover-worktree, drill: true }
+  - { path: "~/.grok/sessions", category: grok-sessions, risk: ask }
+  - { path: "~/.codex", category: codex, risk: ask, drill: true }
+  - { path: "~/.codex/sessions", category: codex-sessions, risk: ask }
+  - { path: "~/.claude", category: claude, risk: ask }
+  - { path: "~/.claude/projects", category: claude-projects, risk: ask }
+  - { path: "~/.cursor", category: cursor, risk: ask }
+  - { path: "~/.ulpi", category: ulpi, risk: ask }
+  - { path: "~/.opencode", category: opencode, risk: ask }
+  - { path: "~/.kiro", category: kiro, risk: ask }
+  - { path: "~/.cache/codex-runtimes", category: codex-runtimes, risk: safe-cache }
+  - { path: "~/Library/Application Support/Claude", category: claude-desktop, risk: ask }
+  - { path: "~/Library/Application Support/Claude/vm_bundles", category: claude-vm-bundles, risk: ask, note: "10G on this machine." }
+  - { path: "~/.cache/phpactor", category: phpactor-cache, risk: safe-cache }
+  - { path: "~/Library/Caches/com.openai.codex", category: codex-cache, risk: ask }
+  - { path: "~/Library/Caches/kache", category: kache, risk: ask, drill: true, note: "48G on this machine; confirm before treating as safe-cache." }
+  - { path: "~/Library/Caches/kache/store", category: kache-store, risk: ask }
+
+browser_runtimes:
+  - { path: "~/Library/Caches/ms-playwright", category: playwright, risk: safe-cache }
+  - { path: "~/.cache/puppeteer", category: puppeteer, risk: safe-cache }
+  - { path: "~/Library/Caches/camoufox", category: camoufox, risk: safe-cache }
+  - { path: "~/Library/Caches/Homebrew", category: homebrew-cache, risk: safe-cache, reclaim: "brew cleanup -s" }
+
+# --- Phase 4: pruned artifact walk ---
+# When walking work_roots, record and prune these directory names.
+
+artifacts:
+  - { name: node_modules, ecosystem: node, risk: rebuildable, confirm: "package.json in parent" }
+  - { name: .pnpm-store, ecosystem: node, risk: safe-cache }
+  - { name: .next, ecosystem: nextjs, risk: rebuildable }
+  - { name: .nuxt, ecosystem: nuxt, risk: rebuildable }
+  - { name: .output, ecosystem: nuxt, risk: rebuildable }
+  - { name: .turbo, ecosystem: turbo, risk: safe-cache }
+  - { name: .parcel-cache, ecosystem: parcel, risk: safe-cache }
+  - { name: dist, ecosystem: js-build, risk: rebuildable, confirm: "not committed in git" }
+  - { name: build, ecosystem: build, risk: rebuildable, confirm: "not an app source folder" }
+  - { name: out, ecosystem: js-build, risk: rebuildable }
+  - { name: coverage, ecosystem: test, risk: safe-cache }
+  - { name: bower_components, ecosystem: bower, risk: rebuildable }
+  - { name: vendor, ecosystem: composer-or-go, risk: rebuildable, confirm: "composer.json or go.mod in parent; skip resources/views/vendor" }
+  - { name: target, ecosystem: rust, risk: rebuildable, confirm: "Cargo.toml in parent" }
+  - { name: .venv, ecosystem: python, risk: rebuildable, confirm: "pyvenv.cfg" }
+  - { name: venv, ecosystem: python, risk: rebuildable, confirm: "pyvenv.cfg" }
+  - { name: env, ecosystem: python, risk: rebuildable, confirm: "pyvenv.cfg", note: "high false-positive rate without pyvenv.cfg" }
+  - { name: __pycache__, ecosystem: python, risk: safe-cache }
+  - { marker_file: pyvenv.cfg, ecosystem: python, risk: rebuildable, note: "The directory containing pyvenv.cfg IS the venv. Names vary: .venv, pipx venvs, uv tools, *-env." }
+  - { name: vendor/bundle, ecosystem: ruby-bundler, risk: rebuildable, confirm: "Gemfile in parent" }
+  - { marker_file: Gemfile, ecosystem: ruby, risk: keep, then_check: ["vendor/bundle", ".bundle"] }
+  - { marker_file: Podfile, ecosystem: cocoapods, risk: keep, then_check: ["Pods"] }
+  - { name: .tox, ecosystem: python, risk: safe-cache }
+  - { name: .mypy_cache, ecosystem: python, risk: safe-cache }
+  - { name: .pytest_cache, ecosystem: python, risk: safe-cache }
+  - { name: .ruff_cache, ecosystem: python, risk: safe-cache }
+  - { name: site-packages, ecosystem: python, risk: rebuildable }
+  - { name: Pods, ecosystem: cocoapods, risk: rebuildable, confirm: "Podfile in parent" }
+  - { name: Carthage, ecosystem: carthage, risk: rebuildable }
+  - { name: DerivedData, ecosystem: xcode, risk: safe-cache }
+  - { name: .gradle, ecosystem: gradle, risk: safe-cache }
+  - { name: .build, ecosystem: swift, risk: rebuildable }
+  - { name: .dart_tool, ecosystem: dart, risk: safe-cache }
+  - { name: .swiftpm, ecosystem: swift, risk: keep }
+
+# During the walk, also notice these directory names as worktree roots
+# (do not prune the parent repo; size these folders as leftover-worktree).
+worktree_markers:
+  - { path_suffix: "/.claude/worktrees", kind: claude }
+  - { path_suffix: "/.ulpi/worktrees", kind: ulpi }
+  - { path_suffix: "/.git/worktrees", kind: git-metadata }
+  - { path: "~/.grok/worktrees", kind: grok }
+  - { path: "~/.codex/worktrees", kind: codex }
+
+# Skip descending into these while walking (in addition to artifacts).
+walk_prune:
+  - .git
+  - Library          # only if a walk ever starts at $HOME
+  - .Trash
+  - node_modules     # already an artifact
+  - target
+  - vendor
+  - .next
+  - Pods
+  - .venv
+
+# --- Phase 6: APIs, not just paths ---
+apis:
+  disk:
+    - df -h / /System/Volumes/Data
+    - diskutil apfs list
+    - diskutil info /System/Volumes/Data
+    - tmutil listlocalsnapshots /
+    - sysctl vm.swapusage
+  simulators:
+    - xcrun simctl list runtimes
+    - xcrun simctl list devices -j
+  android:
+    - echo ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT
+    - which adb emulator avdmanager sdkmanager
+    - avdmanager list avd
+    - sdkmanager --sdk_root="$SDK" --list_installed
+    - "$SDK/emulator/emulator" -list-avds
+  docker:
+    - docker system df
+  toolchains:
+    - rustup toolchain list
+    - nvm ls
+    - node -v
+    - brew --prefix
+    - xcode-select -p
+    - python3 -V
+    - pipx list
+    - uv tool list
+    - ruby -v
+    - gem env
+    - bundle env
+  git:
+    - git -C <repo> worktree list --porcelain
+
+# Thresholds the CLI should use
+thresholds:
+  drill_bytes: 1073741824          # 1 GiB — depth-1 into children
+  report_bytes: 52428800           # 50 MiB — mention in human report
+  artifact_list_min_bytes: 5242880 # 5 MiB — list individual artifact dirs
+  worktree_idle_days: 14           # leftover-worktree if mtime older
+  max_walk_depth: 8
+  skip_system_prefixes:
+    - /System
+    - /usr
+    - /bin
+    - /sbin
+    - /private/var/vm
+    - /dev
+    - /net

@@ -336,36 +336,36 @@ walk_prune:
 # --- Phase 6: APIs, not just paths ---
 apis:
   disk:
-    - df -h / /System/Volumes/Data
-    - diskutil apfs list
-    - diskutil info /System/Volumes/Data
-    - tmutil listlocalsnapshots /
-    - sysctl vm.swapusage
+    - "df -h / /System/Volumes/Data"
+    - "diskutil apfs list"
+    - "diskutil info /System/Volumes/Data"
+    - "tmutil listlocalsnapshots /"
+    - "sysctl vm.swapusage"
   simulators:
-    - xcrun simctl list runtimes
-    - xcrun simctl list devices -j
+    - "xcrun simctl list runtimes"
+    - "xcrun simctl list devices -j"
   android:
-    - echo ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT
-    - which adb emulator avdmanager sdkmanager
-    - avdmanager list avd
-    - sdkmanager --sdk_root="$SDK" --list_installed
-    - "$SDK/emulator/emulator" -list-avds
+    - "echo ANDROID_HOME=$ANDROID_HOME ANDROID_SDK_ROOT=$ANDROID_SDK_ROOT"
+    - "which adb emulator avdmanager sdkmanager"
+    - "avdmanager list avd"
+    - "sdkmanager --sdk_root=$SDK --list_installed"
+    - "$SDK/emulator/emulator -list-avds"
   docker:
-    - docker system df
+    - "docker system df"
   toolchains:
-    - rustup toolchain list
-    - nvm ls
-    - node -v
-    - brew --prefix
-    - xcode-select -p
-    - python3 -V
-    - pipx list
-    - uv tool list
-    - ruby -v
-    - gem env
-    - bundle env
+    - "rustup toolchain list"
+    - "nvm ls"
+    - "node -v"
+    - "brew --prefix"
+    - "xcode-select -p"
+    - "python3 -V"
+    - "pipx list"
+    - "uv tool list"
+    - "ruby -v"
+    - "gem env"
+    - "bundle env"
   git:
-    - git -C <repo> worktree list --porcelain
+    - "git -C <repo> worktree list --porcelain"
 
 # Thresholds the CLI should use
 thresholds:

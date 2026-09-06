@@ -10,7 +10,12 @@ Desktop/Downloads, generic work roots, and auto-discovered project
 folders. `catalog add` is optional customization, not required for a
 useful scan.
 
-Nothing is deleted in this repo. The CLI is not built yet.
+```bash
+go run ./cmd/freedisk help
+go run ./cmd/freedisk scan --quick --json
+```
+
+Scan never deletes. `freedisk delete <id>` is opt-in with explicit ids.
 
 | File | Who it's for |
 |---|---|

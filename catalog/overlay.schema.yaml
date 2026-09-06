@@ -1,0 +1,29 @@
+# User overlay at $XDG_CONFIG_HOME/freedisk/catalog.yaml or ~/.config/freedisk/catalog.yaml
+# Missing file = bundled catalog only.
+
+add:
+  - path: ~/custom-cache
+    risk: ask
+    category: user
+    scans: [quick, dev, full]  # default if omitted
+    glob: false
+
+disable:
+  - ~/.npm   # omit from every mode; unknown path is a no-op
+
+unassign:
+  - path: ~/.npm
+    from: [quick]
+
+disable_scans:
+  - drill
+
+modes:
+  rust:
+    types: [artifacts, worktrees]
+
+work_roots:
+  - path: ~/extra-work
+    category: work
+    risk: keep
+    walk_artifacts: true

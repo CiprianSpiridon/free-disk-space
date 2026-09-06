@@ -3,6 +3,7 @@ package scan
 import (
 	"encoding/json"
 	"os/exec"
+	"path/filepath"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 )
@@ -16,6 +17,11 @@ var SimctlJSON = func() ([]byte, error) {
 	return exec.Command("xcrun", "simctl", "list", "devices", "-j").Output()
 }
 
+// SimctlRuntimesJSON is injected in tests.
+var SimctlRuntimesJSON = func() ([]byte, error) {
+	return exec.Command("xcrun", "simctl", "list", "runtimes", "-j").Output()
+}
+
 type simctlDevices struct {
 	Devices map[string][]struct {
 		UDID              string `json:"udid"`
@@ -24,6 +30,14 @@ type simctlDevices struct {
 		RuntimeIdentifier string `json:"runtimeIdentifier"`
 		LastBootedAt      string `json:"lastBootedAt"`
 	} `json:"devices"`
+}
+
+type simctlRuntimes struct {
+	Runtimes []struct {
+		Identifier  string `json:"identifier"`
+		Name        string `json:"name"`
+		IsAvailable bool   `json:"isAvailable"`
+	} `json:"runtimes"`
 }
 
 func runAppleSim(ctx *Context) error {
@@ -36,29 +50,78 @@ func runAppleSim(ctx *Context) error {
 		ctx.Report.NotPresent = append(ctx.Report.NotPresent, "simctl")
 		return nil
 	}
-	ParseSimctlDevices(b, ctx.Report)
+	booted := ParseSimctlDevices(b, ctx.Report, ctx.Home)
+	rb, err := SimctlRuntimesJSON()
+	if err == nil {
+		ParseSimctlRuntimes(rb, ctx.Report, booted)
+	}
 	return nil
 }
 
 // ParseSimctlDevices joins on runtimeIdentifier, not display name.
-func ParseSimctlDevices(raw []byte, rep *findings.Report) {
+// Path is the on-disk device directory when home is set.
+func ParseSimctlDevices(raw []byte, rep *findings.Report, home string) map[string]bool {
+	booted := map[string]bool{}
 	var doc simctlDevices
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return
+		return booted
+	}
+	deviceDir := ""
+	if home != "" {
+		deviceDir = filepath.Join(home, "Library", "Developer", "CoreSimulator", "Devices")
 	}
 	for group, devs := range doc.Devices {
 		for _, d := range devs {
+			if d.RuntimeIdentifier != "" && d.LastBootedAt != "" {
+				booted[d.RuntimeIdentifier] = true
+			}
 			risk := findings.RiskAsk
 			if d.LastBootedAt == "" {
 				risk = findings.RiskUnusedRuntime
 			}
 			why := "runtimeIdentifier=" + d.RuntimeIdentifier + " group=" + group
+			p := d.UDID
+			if deviceDir != "" && d.UDID != "" {
+				p = filepath.Join(deviceDir, d.UDID)
+			}
 			rep.Findings = append(rep.Findings, findings.Finding{
-				ID: "sim-" + d.UDID, Path: d.UDID, Bytes: 0,
+				ID: "sim-" + d.UDID, Path: p, Bytes: 0,
 				Category: "simulator-device", Risk: risk,
 				LastUsed: d.LastBootedAt, Why: why,
 				Reclaim: &findings.Reclaim{Cmd: "xcrun simctl delete " + d.UDID},
 			})
 		}
+	}
+	return booted
+}
+
+// ParseSimctlRuntimes marks a runtime unused-runtime only when none of its devices were ever booted.
+func ParseSimctlRuntimes(raw []byte, rep *findings.Report, booted map[string]bool) {
+	var doc simctlRuntimes
+	if err := json.Unmarshal(raw, &doc); err != nil {
+		return
+	}
+	if booted == nil {
+		booted = map[string]bool{}
+	}
+	for _, rt := range doc.Runtimes {
+		if rt.Identifier == "" {
+			continue
+		}
+		risk := findings.RiskAsk
+		why := "simctl runtime " + rt.Name
+		if !booted[rt.Identifier] {
+			risk = findings.RiskUnusedRuntime
+			why = "runtime never booted identifier=" + rt.Identifier
+		}
+		rep.Findings = append(rep.Findings, findings.Finding{
+			ID:       findings.IDSlug("sim-runtime", rt.Identifier),
+			Path:     rt.Identifier,
+			Bytes:    0,
+			Category: "simulator-runtime",
+			Risk:     risk,
+			Why:      why,
+			Reclaim:  &findings.Reclaim{Cmd: "xcrun simctl runtime delete " + rt.Identifier},
+		})
 	}
 }

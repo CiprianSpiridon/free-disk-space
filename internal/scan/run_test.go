@@ -56,6 +56,21 @@ func TestRunNoDeleteImports(t *testing.T) {
 	_ = bytes.MinRead
 }
 
+func TestRecipePhaseOrder(t *testing.T) {
+	list := orderPhases(PhasesForTest())
+	var names []string
+	for _, p := range list {
+		switch p.Name {
+		case VolumePhaseName, KnownPhaseName, "tmp", "drill", "artifacts", "worktrees", "apple-sim", "android-sim":
+			names = append(names, p.Name)
+		}
+	}
+	want := []string{VolumePhaseName, KnownPhaseName, "tmp", "drill", "artifacts", "worktrees", "apple-sim", "android-sim"}
+	if strings.Join(names, ",") != strings.Join(want, ",") {
+		t.Fatalf("got %v want %v", names, want)
+	}
+}
+
 func TestDisabledScansSkip(t *testing.T) {
 	var called bool
 	Register(Phase{Name: "skipme", Quick: true, Dev: true, Run: func(*Context) error {

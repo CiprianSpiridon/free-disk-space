@@ -25,6 +25,17 @@ func TestPersistRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPersistRejectsInvalidRisk(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "last-scan.json")
+	if err := os.WriteFile(p, []byte(`{"generated_at":"t","host":{"os":"macos","home":"/u"},"volume":{},"findings":[{"id":"x","path":"/p","bytes":1,"category":"c","risk":"nope"}]}`), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadLastScan(p); err == nil {
+		t.Fatal("expected invalid risk")
+	}
+}
+
 func TestPersistTruncated(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "last-scan.json")

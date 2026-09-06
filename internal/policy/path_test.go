@@ -25,6 +25,18 @@ func TestCanDeleteSystemAndTmp(t *testing.T) {
 	if CanDelete("/tmp") {
 		t.Fatal("expected /tmp refused")
 	}
+	if CanDelete("/private/tmp") {
+		t.Fatal("expected /private/tmp refused")
+	}
+	if CanDelete("/private/var/tmp") {
+		t.Fatal("expected /private/var/tmp refused")
+	}
+	if CanDelete("/var/vm") {
+		t.Fatal("expected /var/vm refused")
+	}
+	if CanDelete("/private/var/vm/swapfile0") {
+		t.Fatal("expected /private/var/vm child refused")
+	}
 }
 
 func TestCanDeleteRelativeAndCargo(t *testing.T) {
@@ -43,5 +55,44 @@ func TestCanDeleteRelativeAndCargo(t *testing.T) {
 	}
 	if CanDelete(filepath.Join(home, ".cargo")) {
 		t.Fatal("expected ~/.cargo refused")
+	}
+	if CanDelete(home) {
+		t.Fatal("home refused")
+	}
+	if CanDelete("/") {
+		t.Fatal("root refused")
+	}
+}
+
+func TestCanDeleteIntermediateSymlinkEscape(t *testing.T) {
+	dir := t.TempDir()
+	target := filepath.Join(dir, "keep")
+	if err := os.Mkdir(target, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	link := filepath.Join(dir, "link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	nested := filepath.Join(link, "Documents")
+	if err := os.Mkdir(filepath.Join(target, "Documents"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if CanDelete(nested) {
+		t.Fatal("intermediate symlink parent must be refused")
+	}
+	if !CanDelete(filepath.Join(dir, "plain")) {
+		t.Fatal("plain child under temp dir should be allowed")
+	}
+}
+
+func TestCanDeleteTMPDIRRoot(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("TMPDIR", dir)
+	if CanDelete(dir) {
+		t.Fatal("TMPDIR root refused")
+	}
+	if !CanDelete(filepath.Join(dir, "child")) {
+		t.Fatal("TMPDIR child allowed")
 	}
 }

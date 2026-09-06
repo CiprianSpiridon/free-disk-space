@@ -33,6 +33,31 @@ func TestParseRiskRejectsUnknown(t *testing.T) {
 	}
 }
 
+func TestIDSlugDistinguishesSimilarPaths(t *testing.T) {
+	a := IDSlug("node", "/Users/x/src/my-app/node_modules")
+	b := IDSlug("node", "/Users/x/src/my/app/node_modules")
+	if a == b {
+		t.Fatalf("collision %s", a)
+	}
+	c := IDSlug("tmp", "/private/tmp/foo bar")
+	d := IDSlug("tmp", "/private/tmp/foo-bar")
+	if c == d {
+		t.Fatalf("collision %s", c)
+	}
+}
+
+func TestUniquifyIDs(t *testing.T) {
+	r := Report{Findings: []Finding{
+		{ID: "same", Path: "/a"},
+		{ID: "same", Path: "/b"},
+		{ID: "other", Path: "/c"},
+	}}
+	UniquifyIDs(&r)
+	if r.Findings[0].ID != "same" || r.Findings[1].ID != "same-2" || r.Findings[2].ID != "other" {
+		t.Fatalf("%+v", r.Findings)
+	}
+}
+
 func TestMarshalHasNoDebugFields(t *testing.T) {
 	r := NewReport("/Users/test")
 	b, err := json.Marshal(r)

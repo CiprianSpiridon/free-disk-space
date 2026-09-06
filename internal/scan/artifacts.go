@@ -18,7 +18,7 @@ func init() {
 }
 
 func gitTracked(repo, path string) bool {
-	cmd := exec.Command("git", "-C", repo, "ls-files", "--error-unmatch", path)
+	cmd := exec.Command("git", "-C", repo, "ls-files", "--error-unmatch", "--", path)
 	return cmd.Run() == nil
 }
 

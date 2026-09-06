@@ -27,7 +27,7 @@ func WriteLastScan(path string, r findings.Report) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o600)
 }
 
 // ReadLastScan loads the report.
@@ -39,6 +39,14 @@ func ReadLastScan(path string) (findings.Report, error) {
 	var r findings.Report
 	if err := json.Unmarshal(b, &r); err != nil {
 		return findings.Report{}, fmt.Errorf("corrupt last-scan.json: %w", err)
+	}
+	if err := r.ValidateRisks(); err != nil {
+		return findings.Report{}, fmt.Errorf("corrupt last-scan.json: %w", err)
+	}
+	for _, f := range r.Findings {
+		if f.ID == "" || f.Path == "" {
+			return findings.Report{}, fmt.Errorf("corrupt last-scan.json: finding missing id or path")
+		}
 	}
 	return r, nil
 }

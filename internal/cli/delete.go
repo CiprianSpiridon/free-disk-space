@@ -1,10 +1,10 @@
 package cli
 
 import (
+	"bufio"
 	"fmt"
 	"strings"
 
-	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 	"github.com/CiprianSpiridon/free-disk-space/internal/reclaim"
 	"github.com/CiprianSpiridon/free-disk-space/internal/scan"
 )
@@ -16,7 +16,8 @@ func init() {
 const deleteLong = `delete <id> [<id>...] [--yes]
 
 ONLY mutate path. Explicit finding ids from the last scan. No --all.
-Non-TTY requires --yes. Never automatic.
+TTY confirms each id (type yes). Non-TTY requires --yes. Never automatic.
+keep/never, git-tracked, busy package managers, tmp roots, and system paths are refused.
 `
 
 func runDelete(g *Global, args []string) error {
@@ -45,16 +46,26 @@ func runDelete(g *Global, args []string) error {
 	if err != nil {
 		return err
 	}
+	in := bufio.NewReader(g.Stdin)
 	for _, id := range ids {
 		f, ok := reclaim.Lookup(r, id)
 		if !ok {
 			return fmt.Errorf("%w: %s", errUnknownID, id)
 		}
-		fmt.Fprintf(g.Stdout, "delete %s %s (%d bytes)\n", f.ID, f.Path, f.Bytes)
+		if g.IsTTY && !yes {
+			fmt.Fprintf(g.Stdout, "Type yes to delete %s %s (%d bytes): ", f.ID, f.Path, f.Bytes)
+			line, err := in.ReadString('\n')
+			if err != nil {
+				return fmt.Errorf("delete aborted: %w", err)
+			}
+			if strings.TrimSpace(line) != "yes" {
+				return fmt.Errorf("delete aborted")
+			}
+		}
 		if err := reclaim.ApplyOne(f); err != nil {
 			return err
 		}
+		fmt.Fprintf(g.Stdout, "deleted %s %s (%d bytes)\n", f.ID, f.Path, f.Bytes)
 	}
-	_ = findings.RiskAsk
 	return nil
 }

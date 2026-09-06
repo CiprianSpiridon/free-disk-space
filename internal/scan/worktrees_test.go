@@ -87,3 +87,59 @@ func TestWorktreesInflightNotLeftover(t *testing.T) {
 		t.Fatal("worktrees must not be quick")
 	}
 }
+
+func TestWorktreesAgesChildNotParent(t *testing.T) {
+	home := t.TempDir()
+	root := filepath.Join(home, ".grok", "worktrees")
+	proj := filepath.Join(root, "app")
+	fresh := filepath.Join(proj, "subagent-now")
+	if err := os.MkdirAll(fresh, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	old := time.Now().Add(-20 * 24 * time.Hour)
+	_ = os.Chtimes(root, old, old)
+	_ = os.Chtimes(proj, old, old)
+	_ = os.Chtimes(fresh, time.Now(), time.Now())
+	cat := &catalog.Catalog{
+		WorktreeMarkers: []catalog.WorktreeMarker{{Path: root, Kind: "grok"}},
+		Thresholds:      catalog.Thresholds{WorktreeIdleDays: 14, WorktreeInflightHours: 24},
+	}
+	rep := findings.NewReport(home)
+	ctx := &Context{Mode: "dev", Catalog: cat, Home: home, Report: &rep}
+	if err := runWorktrees(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Findings) == 0 {
+		t.Fatal("no findings")
+	}
+	for _, f := range rep.Findings {
+		if f.Risk == findings.RiskLeftoverWorktree {
+			t.Fatalf("fresh subagent should not make leftover: %+v", f)
+		}
+	}
+}
+
+func TestWorktreesWalksDiscoveredRoots(t *testing.T) {
+	home := t.TempDir()
+	wt := filepath.Join(home, "work_cip", "repo", ".claude", "worktrees", "a")
+	if err := os.MkdirAll(wt, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	_ = os.WriteFile(filepath.Join(home, "work_cip", "package.json"), []byte("{}"), 0o644)
+	cat := &catalog.Catalog{
+		WorktreeMarkers: []catalog.WorktreeMarker{{PathSuffix: "/.claude/worktrees", Kind: "claude"}},
+		WorkRootDiscover: catalog.WorkRootDiscover{
+			Enabled:        true,
+			ProjectMarkers: []string{"package.json"},
+		},
+		Thresholds: catalog.Thresholds{MaxWalkDepth: 8, WorktreeIdleDays: 14, WorktreeInflightHours: 24},
+	}
+	rep := findings.NewReport(home)
+	ctx := &Context{Mode: "dev", Catalog: cat, Home: home, Report: &rep}
+	if err := runWorktrees(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Findings) == 0 {
+		t.Fatal("expected discovered work root walk")
+	}
+}

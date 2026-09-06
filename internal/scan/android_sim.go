@@ -25,10 +25,17 @@ func runAndroidSim(ctx *Context) error {
 		}
 	}
 	avdCount := 0
+	avdReadOK := true
 	for _, e := range avds {
 		p := catalog.ExpandPath(e.Path, ctx.Home)
 		ents, err := os.ReadDir(p)
 		if err != nil {
+			if !os.IsNotExist(err) {
+				avdReadOK = false
+				if os.IsPermission(err) {
+					ctx.Report.Unreadable = append(ctx.Report.Unreadable, p)
+				}
+			}
 			continue
 		}
 		avdCount += len(ents)
@@ -43,7 +50,7 @@ func runAndroidSim(ctx *Context) error {
 			continue
 		}
 		risk := findings.Risk(e.Risk)
-		if avdCount == 0 {
+		if avdReadOK && avdCount == 0 {
 			risk = findings.RiskUnusedRuntime
 		}
 		ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{

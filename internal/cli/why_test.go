@@ -37,6 +37,32 @@ func TestWhyOrdersAndOmitsKeep(t *testing.T) {
 	}
 }
 
+func TestWhyLimit(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", dir)
+	r := findings.NewReport(dir)
+	r.Findings = []findings.Finding{
+		{ID: "a", Path: "/a", Bytes: 3, Category: "c", Risk: findings.RiskAsk},
+		{ID: "b", Path: "/b", Bytes: 2, Category: "c", Risk: findings.RiskAsk},
+		{ID: "c", Path: "/c", Bytes: 1, Category: "c", Risk: findings.RiskAsk},
+	}
+	if err := scan.WriteLastScan(scan.LastScanPath(), r); err != nil {
+		t.Fatal(err)
+	}
+	buf := &bytes.Buffer{}
+	g := &Global{Stdout: buf, IsTTY: false}
+	if err := runWhy(g, []string{"--json", "--limit", "1"}); err != nil {
+		t.Fatal(err)
+	}
+	var out findings.Report
+	if err := json.Unmarshal(buf.Bytes(), &out); err != nil {
+		t.Fatal(err)
+	}
+	if len(out.Findings) != 1 || out.Findings[0].ID != "a" {
+		t.Fatalf("%+v", out.Findings)
+	}
+}
+
 func TestWhyMissingLastScan(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("XDG_CACHE_HOME", dir)

@@ -32,8 +32,9 @@ Scan types:
 
 Delete (explicit ids only; never --all; never automatic):
   freedisk delete <id> [--yes]
-  Non-TTY requires --yes. Agents must not run delete unless the human named ids.
-  git-tracked paths, in-flight worktrees, and ~/.cargo as a whole are refused.
+  TTY types yes per id. Non-TTY requires --yes. Agents must not run delete unless
+  the human named those ids. Refused: keep/never, git-tracked, busy
+  npm/pnpm/yarn/cargo/uv, tmp roots, /System, ~/.cargo as a whole, /, $HOME.
 
 JSON is default when stdout is not a TTY. Prefer --json when piping.
 

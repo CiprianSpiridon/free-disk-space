@@ -74,14 +74,14 @@ work_root_discover:
 
 system_wide:
   - { path: "/Applications", category: apps, risk: keep, drill: true, glob_children: "*.app" }
-  - { path: "/opt/homebrew", category: homebrew, risk: ask, reclaim: "brew cleanup -s" }
+  - { path: "/opt/homebrew", category: homebrew, risk: keep, note: "Current toolchain prefix; cleanup is ~/Library/Caches/Homebrew." }
   - { path: "/opt/homebrew/Cellar", category: homebrew, risk: ask }
   - { path: "/opt/homebrew/Caskroom", category: homebrew, risk: ask }
   - { path: "/usr/local/Homebrew", category: homebrew-intel, risk: ask }
   - { path: "/usr/local/Cellar", category: homebrew-intel, risk: ask }
   - { path: "/Library/Developer", category: xcode-system, risk: ask, drill: true }
-  - { path: "/Library/Developer/CoreSimulator", category: simulators, risk: unused-runtime, drill: true }
-  - { path: "/Library/Developer/CoreSimulator/Volumes", category: simulator-runtimes, risk: unused-runtime }
+  - { path: "/Library/Developer/CoreSimulator", category: simulators, risk: ask, drill: true, note: "Classify devices/runtimes via simctl, not the whole tree." }
+  - { path: "/Library/Developer/CoreSimulator/Volumes", category: simulator-runtimes, risk: ask }
   - { path: "/Library/Developer/CommandLineTools", category: xcode-clt, risk: keep }
 
 # Unix + macOS temp. Never reclaim the directory itself — only children.
@@ -111,8 +111,8 @@ xcode:
   - { path: "~/Library/Developer/Xcode/iOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime, drill: true }
   - { path: "~/Library/Developer/Xcode/watchOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime }
   - { path: "~/Library/Developer/Xcode/tvOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime }
-  - { path: "~/Library/Developer/CoreSimulator", category: simulator-devices, risk: unused-runtime, drill: true }
-  - { path: "~/Library/Developer/CoreSimulator/Devices", category: simulator-devices, risk: unused-runtime }
+  - { path: "~/Library/Developer/CoreSimulator", category: simulator-devices, risk: ask, drill: true, note: "Per-device unused-runtime comes from simctl lastBootedAt." }
+  - { path: "~/Library/Developer/CoreSimulator/Devices", category: simulator-devices, risk: ask }
   - { path: "~/Library/Developer/CoreSimulator/Caches", category: simulator-cache, risk: safe-cache }
   - { path: "~/Library/Caches/org.swift.swiftpm", category: swiftpm-cache, risk: safe-cache }
   - { path: "~/Library/Caches/CocoaPods", category: cocoapods-cache, risk: safe-cache, reclaim: "pod cache clean --all" }
@@ -230,11 +230,11 @@ ai_local:
 
 agent_clis:
   - { path: "~/.grok", category: grok, risk: ask, drill: true }
-  - { path: "~/.grok/worktrees", category: grok-worktrees, risk: leftover-worktree, drill: true }
+  - { path: "~/.grok/worktrees", category: grok-worktrees, risk: keep, drill: true, note: "Age each project/subagent in the worktrees phase; do not mark leftover here." }
   - { path: "~/.grok/sessions", category: grok-sessions, risk: ask }
   - { path: "~/.codex", category: codex, risk: ask, drill: true }
   - { path: "~/.codex/sessions", category: codex-sessions, risk: ask }
-  - { path: "~/.codex/worktrees", category: codex-worktrees, risk: leftover-worktree, drill: true }
+  - { path: "~/.codex/worktrees", category: codex-worktrees, risk: keep, drill: true, note: "Age each checkout in the worktrees phase; do not mark leftover here." }
   - { path: "~/.claude", category: claude, risk: ask }
   - { path: "~/.claude/projects", category: claude-projects, risk: ask }
   - { path: "~/.cursor", category: cursor, risk: ask }

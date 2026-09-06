@@ -9,6 +9,16 @@ import (
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 )
 
+func TestLookupDuplicateIDsFailClosed(t *testing.T) {
+	r := findings.Report{Findings: []findings.Finding{
+		{ID: "x", Path: "/a", Risk: findings.RiskAsk},
+		{ID: "x", Path: "/b", Risk: findings.RiskAsk},
+	}}
+	if _, ok := Lookup(r, "x"); ok {
+		t.Fatal("duplicates must not resolve")
+	}
+}
+
 func TestApplyOneRemovesFile(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "x")

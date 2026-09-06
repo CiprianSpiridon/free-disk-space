@@ -19,7 +19,7 @@ func TestSimJoinRuntimeIdentifier(t *testing.T) {
   }
 }`)
 	rep := findings.NewReport("/u")
-	ParseSimctlDevices(raw, &rep)
+	ParseSimctlDevices(raw, &rep, "/u")
 	if len(rep.Findings) != 1 {
 		t.Fatalf("%+v", rep.Findings)
 	}
@@ -28,6 +28,50 @@ func TestSimJoinRuntimeIdentifier(t *testing.T) {
 	}
 	if strings.Contains(rep.Findings[0].Why, "orphan") {
 		t.Fatal("name mismatch should not orphan")
+	}
+	want := filepath.Join("/u", "Library", "Developer", "CoreSimulator", "Devices", "AAA")
+	if rep.Findings[0].Path != want {
+		t.Fatalf("path=%s", rep.Findings[0].Path)
+	}
+}
+
+func TestSimRuntimeUnusedWhenNeverBooted(t *testing.T) {
+	rep := findings.NewReport("/u")
+	booted := ParseSimctlDevices([]byte(`{
+  "devices": {
+    "iOS 18": [
+      {"udid":"AAA","name":"iPhone","state":"Shutdown","runtimeIdentifier":"rt-used","lastBootedAt":"2026-01-01"},
+      {"udid":"BBB","name":"iPhone","state":"Shutdown","runtimeIdentifier":"rt-never"}
+    ]
+  }
+}`), &rep, "/u")
+	ParseSimctlRuntimes([]byte(`{
+  "runtimes": [
+    {"identifier":"rt-used","name":"iOS 18"},
+    {"identifier":"rt-never","name":"iOS 17"}
+  ]
+}`), &rep, booted)
+	var used, never *findings.Finding
+	for i := range rep.Findings {
+		f := &rep.Findings[i]
+		if f.Category != "simulator-runtime" {
+			continue
+		}
+		if f.Path == "rt-used" {
+			used = f
+		}
+		if f.Path == "rt-never" {
+			never = f
+		}
+	}
+	if used == nil || never == nil {
+		t.Fatalf("%+v", rep.Findings)
+	}
+	if used.Risk != findings.RiskAsk {
+		t.Fatalf("used risk %s", used.Risk)
+	}
+	if never.Risk != findings.RiskUnusedRuntime {
+		t.Fatalf("never risk %s", never.Risk)
 	}
 }
 

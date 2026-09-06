@@ -4,11 +4,18 @@ import (
 	"fmt"
 	"os/exec"
 	"runtime"
+	"sort"
 	"sync"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 )
+
+// recipeOrder is RECIPE §4: volume, known, tmp, drill, artifacts, worktrees, sims.
+var recipeOrder = []string{
+	VolumePhaseName, KnownPhaseName, "tmp", "drill",
+	"artifacts", "worktrees", "apple-sim", "android-sim",
+}
 
 // Phase is a named scan step.
 type Phase struct {
@@ -38,10 +45,10 @@ func Register(p Phase) {
 
 // Context is one scan run.
 type Context struct {
-	Mode    string
-	Catalog *catalog.Catalog
-	Home    string
-	Report  *findings.Report
+	Mode     string
+	Catalog  *catalog.Catalog
+	Home     string
+	Report   *findings.Report
 	Diskutil func() (string, error)
 }
 
@@ -145,6 +152,7 @@ func Run(ctx *Context) error {
 	mu.Lock()
 	list := append([]Phase{}, phases...)
 	mu.Unlock()
+	list = orderPhases(list)
 	var first error
 	for _, p := range list {
 		if !wantPhase(ctx, p) {
@@ -159,7 +167,31 @@ func Run(ctx *Context) error {
 			}
 		}
 	}
-	return nil
+	if ctx.Report != nil {
+		findings.UniquifyIDs(ctx.Report)
+	}
+	return first
+}
+
+func orderPhases(list []Phase) []Phase {
+	rank := map[string]int{}
+	for i, n := range recipeOrder {
+		rank[n] = i + 1
+	}
+	sort.SliceStable(list, func(i, j int) bool {
+		ri, rj := rank[list[i].Name], rank[list[j].Name]
+		if ri == 0 && rj == 0 {
+			return false
+		}
+		if ri == 0 {
+			return false
+		}
+		if rj == 0 {
+			return true
+		}
+		return ri < rj
+	})
+	return list
 }
 
 // PhasesForTest returns a copy of registered phases.
@@ -169,4 +201,3 @@ func PhasesForTest() []Phase {
 	defer mu.Unlock()
 	return append([]Phase{}, phases...)
 }
-

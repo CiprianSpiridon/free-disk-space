@@ -62,7 +62,7 @@ func repoGitTracked(path string) bool {
 			if r, err := filepath.Rel(dir, path); err == nil {
 				rel = r
 			}
-			cmd := exec.Command("git", "-C", dir, "ls-files", "--error-unmatch", rel)
+			cmd := exec.Command("git", "-C", dir, "ls-files", "--error-unmatch", "--", rel)
 			return cmd.Run() == nil
 		}
 		parent := filepath.Dir(dir)
@@ -74,12 +74,18 @@ func repoGitTracked(path string) bool {
 	return false
 }
 
-// Lookup finding by id.
+// Lookup finding by id. Duplicate ids fail closed (not found).
 func Lookup(r findings.Report, id string) (findings.Finding, bool) {
+	var found findings.Finding
+	n := 0
 	for _, f := range r.Findings {
 		if f.ID == id {
-			return f, true
+			found = f
+			n++
 		}
 	}
-	return findings.Finding{}, false
+	if n != 1 {
+		return findings.Finding{}, false
+	}
+	return found, true
 }

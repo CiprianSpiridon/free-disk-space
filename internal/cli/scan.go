@@ -77,7 +77,9 @@ func runScan(g *Global, args []string) error {
 	if err := scan.Run(ctx); err != nil {
 		return err
 	}
-	_ = scan.WriteLastScan(scan.LastScanPath(), *ctx.Report)
+	if err := scan.WriteLastScan(scan.LastScanPath(), *ctx.Report); err != nil {
+		return fmt.Errorf("write last-scan: %w", err)
+	}
 	if wantJSON(g) {
 		return report.JSON(g.Stdout, *ctx.Report)
 	}

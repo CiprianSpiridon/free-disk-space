@@ -22,9 +22,16 @@ func runDrill(ctx *Context) error {
 	timeout := 30 * time.Second
 	cctx, cancel := context.WithTimeout(context.Background(), timeout)
 	defer cancel()
+	seen := map[string]struct{}{}
+	for _, f := range ctx.Report.Findings {
+		seen[f.Path] = struct{}{}
+	}
 	var extra []findings.Finding
 	for _, f := range ctx.Report.Findings {
 		if f.Bytes < thr {
+			continue
+		}
+		if skipDrill(f) {
 			continue
 		}
 		select {
@@ -47,6 +54,9 @@ func runDrill(ctx *Context) error {
 				continue
 			}
 			p := filepath.Join(f.Path, ent.Name())
+			if _, ok := seen[p]; ok {
+				continue
+			}
 			sz := size.Of(p)
 			if sz.Missing || sz.Allocated == 0 {
 				continue
@@ -66,4 +76,22 @@ func runDrill(ctx *Context) error {
 	}
 	ctx.Report.Findings = append(ctx.Report.Findings, extra...)
 	return nil
+}
+
+func skipDrill(f findings.Finding) bool {
+	switch f.Risk {
+	case findings.RiskKeep, findings.RiskNever, findings.RiskLeftoverWorktree:
+		return true
+	}
+	switch f.Category {
+	case "tmp", "tmp-user", "tmp-child":
+		return true
+	}
+	base := filepath.Base(f.Path)
+	switch base {
+	case "node_modules", "target", ".next", "vendor", "dist", "build", "out",
+		".turbo", ".parcel-cache", "__pycache__":
+		return true
+	}
+	return false
 }

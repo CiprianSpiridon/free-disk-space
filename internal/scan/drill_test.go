@@ -44,6 +44,28 @@ func TestDrillEmitsLargeChildren(t *testing.T) {
 	_ = sawTiny
 }
 
+func TestDrillSkipsNodeModules(t *testing.T) {
+	root := t.TempDir()
+	nm := filepath.Join(root, "node_modules")
+	_ = os.Mkdir(nm, 0o755)
+	_ = os.WriteFile(filepath.Join(nm, "b"), make([]byte, 8000), 0o644)
+	rep := findings.NewReport(root)
+	rep.Findings = []findings.Finding{
+		{ID: "nm", Path: nm, Bytes: 1 << 20, Category: "node_modules", Risk: findings.RiskRebuildable},
+	}
+	ctx := &Context{
+		Catalog: &catalog.Catalog{Thresholds: catalog.Thresholds{DrillBytes: 100}},
+		Report:  &rep,
+		Home:    root,
+	}
+	if err := runDrill(ctx); err != nil {
+		t.Fatal(err)
+	}
+	if len(rep.Findings) != 1 {
+		t.Fatalf("drilled artifact: %+v", rep.Findings)
+	}
+}
+
 func TestDrillSelfRegisters(t *testing.T) {
 	found := false
 	for _, p := range PhasesForTest() {

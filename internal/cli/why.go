@@ -4,6 +4,8 @@ import (
 	"fmt"
 	"os"
 	"sort"
+	"strconv"
+	"strings"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 	"github.com/CiprianSpiridon/free-disk-space/internal/report"
@@ -17,8 +19,24 @@ func init() {
 func runWhy(g *Global, args []string) error {
 	limit := 20
 	for i := 0; i < len(args); i++ {
-		if args[i] == "--json" {
+		switch {
+		case args[i] == "--json":
 			g.JSON = true
+		case args[i] == "--limit" && i+1 < len(args):
+			n, err := strconv.Atoi(args[i+1])
+			if err != nil || n < 1 {
+				return fmt.Errorf("%w: --limit needs a positive integer", ErrUsage)
+			}
+			limit = n
+			i++
+		case strings.HasPrefix(args[i], "--limit="):
+			n, err := strconv.Atoi(strings.TrimPrefix(args[i], "--limit="))
+			if err != nil || n < 1 {
+				return fmt.Errorf("%w: --limit needs a positive integer", ErrUsage)
+			}
+			limit = n
+		default:
+			return fmt.Errorf("%w: unknown flag %s", ErrUsage, args[i])
 		}
 	}
 	p := scan.LastScanPath()

@@ -743,7 +743,7 @@ Self-register phase Name=tmp, Quick=true, Dev=true. Do not edit run.go. For cata
 
 ## Ship Cut
 
-Ship `--quick` after TASK-012: `go run ./cmd/freedisk scan --quick --json` is schema-valid JSON from volume + known paths, never deletes. `--dev` is not a ship until TASK-014, TASK-015, and TASK-025 have registered. Catalog CLI (018), scans CLI (023), delete (019), and help (022) can land after 012.
+Complete `--quick` (volume + known + tmp children) after TASK-012 and TASK-025. `go run ./cmd/freedisk scan --quick --json` is schema-valid and never deletes. `--dev` ships after TASK-014 and TASK-015. Catalog CLI (018), scans CLI (023), delete (019), and help (022) can land after 012.
 
 ## Test Coverage Map
 

@@ -215,9 +215,10 @@ plan = {
         "README.md — replace “CLI is not built yet” when the binary exists (TASK-021).",
     ],
     "shipCut": (
-        "Ship `--quick` after TASK-012: `go run ./cmd/freedisk scan --quick --json` is schema-valid JSON from "
-        "volume + known paths, never deletes. `--dev` is not a ship until TASK-014, TASK-015, and TASK-025 "
-        "have registered. Catalog CLI (018), scans CLI (023), delete (019), and help (022) can land after 012."
+        "Complete `--quick` (volume + known + tmp children) after TASK-012 and TASK-025. "
+        "`go run ./cmd/freedisk scan --quick --json` is schema-valid and never deletes. "
+        "`--dev` ships after TASK-014 and TASK-015. Catalog CLI (018), scans CLI (023), delete (019), "
+        "and help (022) can land after 012."
     ),
     "failureModes": [
         "Empty delete args or --all: exit 2, filesystem unchanged.",

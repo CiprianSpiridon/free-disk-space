@@ -36,6 +36,9 @@ func runTmp(ctx *Context) error {
 	}
 	seen := map[string]struct{}{}
 	for _, e := range ctx.Catalog.Tmp {
+		if !catalog.HasScan(e.Scans, ctx.Mode) {
+			continue
+		}
 		root := catalog.ExpandPath(e.Path, ctx.Home)
 		if root == "" {
 			continue

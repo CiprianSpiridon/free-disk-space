@@ -54,6 +54,9 @@ func ApplyOne(f findings.Finding) error {
 	if dockerish(f) && (ProcessRunning("Docker") || ProcessRunning("com.docker.backend")) {
 		return fmt.Errorf("%w: docker", ErrBusy)
 	}
+	if strings.Contains(f.Why, "in-flight") {
+		return fmt.Errorf("refused in-flight worktree")
+	}
 	return os.RemoveAll(f.Path)
 }
 

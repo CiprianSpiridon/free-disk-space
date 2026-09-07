@@ -78,6 +78,22 @@ func paths(ents []Entry) []string {
 	return s
 }
 
+func TestUnassignFullDropsPath(t *testing.T) {
+	home := "/Users/test"
+	npm := ExpandPath("~/.npm", home)
+	bundled := &Catalog{
+		Node: []Entry{{Path: "~/.npm", Category: "npm-cache", Risk: "safe-cache"}},
+	}
+	ov := &Overlay{Unassign: []Unassign{{Path: "~/.npm", From: []string{"full"}}}}
+	m := Merge(bundled, ov, home)
+	if containsPath(m.ModePaths("full"), npm) {
+		t.Fatal("unassign from full should drop npm")
+	}
+	if !containsPath(m.ModePaths("quick"), npm) {
+		t.Fatal("quick should still have npm")
+	}
+}
+
 func TestOverlayAddRespectsDisable(t *testing.T) {
 	home := "/Users/test"
 	p := ExpandPath("~/skip-me", home)

@@ -25,6 +25,20 @@ func TestPersistRoundTrip(t *testing.T) {
 	}
 }
 
+func TestPersistStaleLastScan(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "last-scan.json")
+	r := findings.NewReport("/Users/x")
+	r.GeneratedAt = "2000-01-01T00:00:00Z"
+	r.Findings = []findings.Finding{{ID: "a", Path: "/p", Bytes: 1, Category: "c", Risk: findings.RiskAsk}}
+	if err := WriteLastScan(p, r); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := ReadLastScan(p); err == nil {
+		t.Fatal("expected stale")
+	}
+}
+
 func TestPersistRejectsInvalidRisk(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "last-scan.json")

@@ -63,6 +63,32 @@ func TestDeleteTTYRequiresYesWord(t *testing.T) {
 	}
 }
 
+func TestDeleteRemovesIdFromLastScan(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "f")
+	_ = os.WriteFile(p, []byte("x"), 0o644)
+	r := findings.NewReport(dir)
+	r.Findings = []findings.Finding{
+		{ID: "f1", Path: p, Bytes: 1, Category: "c", Risk: findings.RiskSafeCache},
+		{ID: "f2", Path: filepath.Join(dir, "other"), Bytes: 1, Category: "c", Risk: findings.RiskAsk},
+	}
+	t.Setenv("XDG_CACHE_HOME", dir)
+	if err := scan.WriteLastScan(scan.LastScanPath(), r); err != nil {
+		t.Fatal(err)
+	}
+	g := &Global{Stdout: &bytes.Buffer{}, IsTTY: false}
+	if err := runDelete(g, []string{"--yes", "f1"}); err != nil {
+		t.Fatal(err)
+	}
+	got, err := scan.ReadLastScan(scan.LastScanPath())
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(got.Findings) != 1 || got.Findings[0].ID != "f2" {
+		t.Fatalf("%+v", got.Findings)
+	}
+}
+
 func TestDeleteNonTTYYesRemoves(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "f")

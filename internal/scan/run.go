@@ -5,10 +5,12 @@ import (
 	"os/exec"
 	"runtime"
 	"sort"
+	"strings"
 	"sync"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
+	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
 // recipeOrder is RECIPE §4: volume, known, tmp, drill, artifacts, worktrees, sims.
@@ -81,8 +83,25 @@ func runVolume(ctx *Context) error {
 	if err != nil {
 		return err
 	}
+	v.Snapshots = listLocalSnapshots()
 	ctx.Report.Volume = v
 	return nil
+}
+
+func listLocalSnapshots() []string {
+	out, err := exec.Command("tmutil", "listlocalsnapshots", "/").Output()
+	if err != nil {
+		return nil
+	}
+	var names []string
+	for _, line := range strings.Split(string(out), "\n") {
+		line = strings.TrimSpace(line)
+		if line == "" || strings.HasPrefix(line, "Snapshots") {
+			continue
+		}
+		names = append(names, line)
+	}
+	return names
 }
 
 func runKnown(ctx *Context) error {
@@ -149,6 +168,9 @@ func Run(ctx *Context) error {
 	ctx.Report.Host.OS = "macos"
 	ctx.Report.Host.Home = ctx.Home
 	ctx.Report.Host.Arch = runtime.GOARCH
+	if ctx.Catalog != nil {
+		size.SetSkipPrefixes(ctx.Catalog.Thresholds.SkipSystemPrefixes)
+	}
 	mu.Lock()
 	list := append([]Phase{}, phases...)
 	mu.Unlock()

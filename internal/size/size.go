@@ -39,11 +39,23 @@ func Of(path string) Result {
 	return dirSize(path)
 }
 
+var extraSkip []string
+
+// SetSkipPrefixes adds catalog skip_system_prefixes to the walk denylist.
+func SetSkipPrefixes(p []string) {
+	extraSkip = append([]string{}, p...)
+}
+
 func skipWalk(p string) bool {
 	if strings.HasPrefix(p, "/usr/local") {
 		return false
 	}
-	for _, pre := range []string{"/System", "/usr", "/bin", "/sbin", "/private/var/vm", "/dev", "/net"} {
+	prefs := []string{"/System", "/usr", "/bin", "/sbin", "/private/var/vm", "/dev", "/net"}
+	prefs = append(prefs, extraSkip...)
+	for _, pre := range prefs {
+		if pre == "" {
+			continue
+		}
 		if p == pre || strings.HasPrefix(p, pre+"/") {
 			return true
 		}
@@ -51,9 +63,12 @@ func skipWalk(p string) bool {
 	return false
 }
 
+const sfDataless = 0x40000000
+
 func dirSize(root string) Result {
 	var alloc, app int64
 	var unread []string
+	seenIno := map[[2]uint64]struct{}{}
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
 			if os.IsPermission(err) || errors.Is(err, fs.ErrPermission) {
@@ -79,6 +94,16 @@ func dirSize(root string) Result {
 				unread = append(unread, p)
 			}
 			return nil
+		}
+		if st, ok := info.Sys().(*syscall.Stat_t); ok {
+			if st.Flags&sfDataless != 0 {
+				return nil
+			}
+			k := [2]uint64{uint64(st.Dev), uint64(st.Ino)}
+			if _, dup := seenIno[k]; dup {
+				return nil
+			}
+			seenIno[k] = struct{}{}
 		}
 		a, ap := fromInfo(info)
 		alloc += a

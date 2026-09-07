@@ -5,9 +5,13 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"time"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 )
+
+// LastScanMaxAge is how long a last-scan.json stays valid for delete.
+var LastScanMaxAge = 24 * time.Hour
 
 // LastScanPath is $XDG_CACHE_HOME/freedisk/last-scan.json
 func LastScanPath() string {
@@ -46,6 +50,12 @@ func ReadLastScan(path string) (findings.Report, error) {
 	for _, f := range r.Findings {
 		if f.ID == "" || f.Path == "" {
 			return findings.Report{}, fmt.Errorf("corrupt last-scan.json: finding missing id or path")
+		}
+	}
+	if r.GeneratedAt != "" {
+		t, err := time.Parse(time.RFC3339, r.GeneratedAt)
+		if err == nil && time.Since(t) > LastScanMaxAge {
+			return findings.Report{}, fmt.Errorf("stale last-scan.json (%s); run scan again", r.GeneratedAt)
 		}
 	}
 	return r, nil

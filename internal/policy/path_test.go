@@ -86,6 +86,19 @@ func TestCanDeleteIntermediateSymlinkEscape(t *testing.T) {
 	}
 }
 
+func TestCanCatalogRefusesRootAndHome(t *testing.T) {
+	if CanCatalog("/") {
+		t.Fatal("/")
+	}
+	home, _ := os.UserHomeDir()
+	if CanCatalog(home) {
+		t.Fatal("home")
+	}
+	if !CanCatalog(filepath.Join(home, "custom-cache")) {
+		t.Fatal("user cache")
+	}
+}
+
 func TestCanDeleteTmpChildKensi(t *testing.T) {
 	if !CanDelete("/private/tmp/kensi-app") {
 		t.Fatal("tmp child kensi-app must be deletable")

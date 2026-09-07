@@ -4,9 +4,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path/filepath"
 	"strings"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
+	"github.com/CiprianSpiridon/free-disk-space/internal/policy"
 )
 
 func init() {
@@ -56,6 +58,15 @@ func runCatalog(g *Global, args []string) error {
 			return fmt.Errorf("%w: catalog add PATH", ErrUsage)
 		}
 		e := catalog.Entry{Path: args[1], Risk: "ask", Category: "user"}
+		exp := catalog.ExpandPath(e.Path, home)
+		if !filepath.IsAbs(exp) {
+			if a, err := filepath.Abs(e.Path); err == nil {
+				exp = a
+			}
+		}
+		if !policy.CanCatalog(exp) {
+			return fmt.Errorf("%w: refused catalog path %s", ErrUsage, e.Path)
+		}
 		for i := 2; i < len(args); i++ {
 			switch {
 			case args[i] == "--glob":

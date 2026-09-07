@@ -149,7 +149,47 @@ func tooBroad(clean, home string) bool {
 	if clean == filepath.Join(h, "Library", "Containers") {
 		return true
 	}
+	if strings.Contains(clean, "/Library/Mobile Documents") {
+		return true
+	}
+	if strings.HasSuffix(clean, ".icloud") {
+		return true
+	}
 	return false
+}
+
+// CanCatalog reports whether path may be added to the user overlay.
+func CanCatalog(path string) bool {
+	if path == "" {
+		return false
+	}
+	clean := filepath.Clean(path)
+	if !filepath.IsAbs(clean) {
+		return false
+	}
+	if clean == "/" {
+		return false
+	}
+	home, _ := os.UserHomeDir()
+	if home != "" && (clean == filepath.Clean(home) || canonical(clean) == canonical(home)) {
+		return false
+	}
+	c := canonical(clean)
+	for _, d := range denyExact {
+		if clean == d || c == canonical(d) {
+			return false
+		}
+	}
+	if strings.HasPrefix(clean, "/usr/local") {
+		return true
+	}
+	for _, pre := range denyPrefixes {
+		cp := canonical(pre)
+		if clean == pre || c == cp || strings.HasPrefix(clean, pre+"/") || strings.HasPrefix(c, cp+"/") {
+			return false
+		}
+	}
+	return true
 }
 
 // CanDelete reports whether path is allowed as a delete target.

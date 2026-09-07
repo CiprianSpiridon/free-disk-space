@@ -28,13 +28,14 @@ type Entry struct {
 
 // Artifact is a walk marker.
 type Artifact struct {
-	Name       string `yaml:"name"`
-	MarkerFile string `yaml:"marker_file"`
-	Ecosystem  string `yaml:"ecosystem"`
-	Risk       string `yaml:"risk"`
-	Confirm    string `yaml:"confirm"`
-	File       bool   `yaml:"file"`
-	Note       string `yaml:"note"`
+	Name       string   `yaml:"name"`
+	MarkerFile string   `yaml:"marker_file"`
+	Ecosystem  string   `yaml:"ecosystem"`
+	Risk       string   `yaml:"risk"`
+	Confirm    string   `yaml:"confirm"`
+	File       bool     `yaml:"file"`
+	Note       string   `yaml:"note"`
+	ThenCheck  []string `yaml:"then_check"`
 }
 
 // WorkRootDiscover finds extra $HOME project containers.
@@ -96,7 +97,21 @@ type Catalog struct {
 	Thresholds       Thresholds          `yaml:"thresholds"`
 	source           string
 	disableScans     []string
+	disablePaths     []string
 	userModes        map[string]UserMode
+}
+
+// PathDisabled reports whether overlay disabled this expanded path.
+func (c *Catalog) PathDisabled(p string) bool {
+	if c == nil {
+		return false
+	}
+	for _, d := range c.disablePaths {
+		if d == p {
+			return true
+		}
+	}
+	return false
 }
 
 // AllEntries concatenates path groups (not artifacts).
@@ -155,24 +170,24 @@ func LoadBundled() (*Catalog, error) {
 	return parse("bundled", catalogdata.YAML)
 }
 
-// LoadDefault is explicit path, FREEDISK_CATALOG, repo walk, then the embedded catalog.
+// LoadDefault is --catalog, FREEDISK_CATALOG, then the embedded catalog (no cwd walk).
 func LoadDefault(explicit string) (*Catalog, []string, error) {
 	path, tried, err := ResolveCatalogPath(explicit)
-	if err == nil && path != "" {
-		c, err := Load(path)
-		return c, tried, err
+	if path != "" {
+		c, lerr := Load(path)
+		return c, tried, lerr
+	}
+	if explicit != "" || os.Getenv("FREEDISK_CATALOG") != "" {
+		return nil, tried, err
 	}
 	c, berr := LoadBundled()
 	if berr != nil {
-		if err != nil {
-			return nil, tried, err
-		}
 		return nil, tried, berr
 	}
 	return c, append(tried, "bundled"), nil
 }
 
-// ResolveCatalogPath search order: explicit, FREEDISK_CATALOG, walk for catalog/macos-hotspots.yaml.
+// ResolveCatalogPath search order: --catalog, FREEDISK_CATALOG. Otherwise LoadDefault uses the embedded YAML.
 func ResolveCatalogPath(explicit string) (string, []string, error) {
 	var tried []string
 	if explicit != "" {
@@ -180,28 +195,16 @@ func ResolveCatalogPath(explicit string) (string, []string, error) {
 		if _, err := os.Stat(explicit); err == nil {
 			return explicit, tried, nil
 		}
+		return "", tried, fmt.Errorf("catalog not found: %s", explicit)
 	}
 	if env := os.Getenv("FREEDISK_CATALOG"); env != "" {
 		tried = append(tried, env)
 		if _, err := os.Stat(env); err == nil {
 			return env, tried, nil
 		}
+		return "", tried, fmt.Errorf("catalog not found: %s", env)
 	}
-	wd, err := os.Getwd()
-	if err != nil {
-		return "", tried, err
-	}
-	for dir := wd; ; dir = filepath.Dir(dir) {
-		p := filepath.Join(dir, "catalog", "macos-hotspots.yaml")
-		tried = append(tried, p)
-		if _, err := os.Stat(p); err == nil {
-			return p, tried, nil
-		}
-		if dir == filepath.Dir(dir) {
-			break
-		}
-	}
-	return "", tried, fmt.Errorf("catalog file not found; tried: %s", strings.Join(tried, ", "))
+	return "", tried, nil
 }
 
 // ExpandPath expands ~ and $ENV in a catalog path.

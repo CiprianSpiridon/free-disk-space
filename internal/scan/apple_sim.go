@@ -6,6 +6,7 @@ import (
 	"path/filepath"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
+	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
 func init() {
@@ -84,11 +85,16 @@ func ParseSimctlDevices(raw []byte, rep *findings.Report, home string) (map[stri
 			}
 			why := "runtimeIdentifier=" + d.RuntimeIdentifier + " group=" + group
 			p := d.UDID
+			var bytes int64
 			if deviceDir != "" && d.UDID != "" {
 				p = filepath.Join(deviceDir, d.UDID)
+				sz := size.Of(p)
+				if !sz.Missing && sz.Err == nil {
+					bytes = sz.Allocated
+				}
 			}
 			rep.Findings = append(rep.Findings, findings.Finding{
-				ID: "sim-" + d.UDID, Path: p, Bytes: 0,
+				ID: "sim-" + d.UDID, Path: p, Bytes: bytes,
 				Category: "simulator-device", Risk: risk,
 				LastUsed: d.LastBootedAt, Why: why,
 				Reclaim: &findings.Reclaim{Cmd: "xcrun simctl delete " + d.UDID},

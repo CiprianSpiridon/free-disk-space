@@ -46,6 +46,15 @@ func TestApplyOneDockerBusy(t *testing.T) {
 	}
 }
 
+func TestApplyOneRefusesInflightWorktree(t *testing.T) {
+	p := filepath.Join(t.TempDir(), "wt")
+	_ = os.Mkdir(p, 0o755)
+	err := ApplyOne(findings.Finding{ID: "w", Path: p, Risk: findings.RiskAsk, Why: "in-flight or recent worktrees"})
+	if err == nil {
+		t.Fatal("expected in-flight refuse")
+	}
+}
+
 func TestApplyOneRemovesFile(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "x")

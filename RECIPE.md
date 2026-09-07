@@ -515,7 +515,6 @@ freedisk catalog / scans   # optional overlay; bundled catalog is the starting p
 freedisk delete <id> [<id>…]  # ONLY mutate path. Explicit ids. Confirm each.
                              # No --all. No default. Agents must not call
                              # this unless the human named those ids.
-freedisk history           # optional operation log
 ```
 
 Flags: `--json` (and JSON when stdout is not a TTY), `--debug`.

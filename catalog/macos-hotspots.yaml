@@ -99,7 +99,7 @@ library:
   - { path: "~/Library/Caches", category: caches, risk: ask, drill: true }
   - { path: "~/Library/Application Support", category: app-support, risk: ask, drill: true }
   - { path: "~/Library/Developer", category: xcode-user, risk: ask, drill: true }
-  - { path: "~/Library/Preferences", category: preferences, risk: keep, drill: true, note: "Unusually large on this machine (11G); always drill." }
+  - { path: "~/Library/Preferences", category: preferences, risk: keep, drill: true, note: "Drill if unusually large." }
   - { path: "~/Library/Logs", category: logs, risk: safe-cache }
   - { path: "~/Library/Group Containers", category: group-containers, risk: ask }
   - { path: "~/Library/pnpm", category: pnpm-store, risk: safe-cache, reclaim: "pnpm store prune" }
@@ -122,17 +122,16 @@ xcode:
   - { path: "~/.swiftpm", category: swiftpm, risk: safe-cache }
 
 android:
-  - { path: "~/Library/Android/sdk", category: android-sdk, risk: unused-runtime, drill: true }
-  - { path: "~/Library/Android/sdk/system-images", category: android-system-images, risk: unused-runtime }
-  - { path: "~/.android", category: android, risk: unused-runtime }
-  - { path: "~/.android/avd", category: android-avds, risk: unused-runtime, drill: true }
-  # Homebrew cask android-commandlinetools — THIS is where the SDK was on this Mac
-  - { path: "/opt/homebrew/share/android-commandlinetools", category: android-sdk-homebrew, risk: unused-runtime, drill: true }
-  - { path: "/opt/homebrew/share/android-commandlinetools/system-images", category: android-system-images, risk: unused-runtime, drill: true }
-  - { path: "/opt/homebrew/share/android-commandlinetools/emulator", category: android-emulator, risk: unused-runtime }
-  - { path: "/opt/homebrew/Caskroom/android-commandlinetools", category: android-cask, risk: unused-runtime }
+  - { path: "~/Library/Android/sdk", category: android-sdk, risk: ask, drill: true }
+  - { path: "~/Library/Android/sdk/system-images", category: android-system-images, risk: ask }
+  - { path: "~/.android", category: android, risk: ask }
+  - { path: "~/.android/avd", category: android-avds, risk: ask, drill: true }
+  - { path: "/opt/homebrew/share/android-commandlinetools", category: android-sdk-homebrew, risk: ask, drill: true }
+  - { path: "/opt/homebrew/share/android-commandlinetools/system-images", category: android-system-images, risk: ask, drill: true }
+  - { path: "/opt/homebrew/share/android-commandlinetools/emulator", category: android-emulator, risk: ask }
+  - { path: "/opt/homebrew/Caskroom/android-commandlinetools", category: android-cask, risk: ask }
   - { path: "/opt/homebrew/Caskroom/android-platform-tools", category: android-platform-tools, risk: ask }
-  - { path: "/usr/local/share/android-sdk", category: android-sdk-intel-brew, risk: unused-runtime }
+  - { path: "/usr/local/share/android-sdk", category: android-sdk-intel-brew, risk: ask }
   - { path: "~/Library/Application Support/Google/AndroidStudio", category: android-studio, risk: ask }
   - { path: "/Applications/Android Studio.app", category: android-studio-app, risk: keep }
   - { path: "~/Library/Genymobile", category: genymotion, risk: unused-runtime }
@@ -245,10 +244,10 @@ agent_clis:
   - { path: "~/.kiro", category: kiro, risk: ask }
   - { path: "~/.cache/codex-runtimes", category: codex-runtimes, risk: safe-cache }
   - { path: "~/Library/Application Support/Claude", category: claude-desktop, risk: ask }
-  - { path: "~/Library/Application Support/Claude/vm_bundles", category: claude-vm-bundles, risk: ask, note: "10G on this machine." }
+  - { path: "~/Library/Application Support/Claude/vm_bundles", category: claude-vm-bundles, risk: ask }
   - { path: "~/.cache/phpactor", category: phpactor-cache, risk: safe-cache }
   - { path: "~/Library/Caches/com.openai.codex", category: codex-cache, risk: ask }
-  - { path: "~/Library/Caches/kache", category: kache, risk: ask, drill: true, note: "48G on this machine; confirm before treating as safe-cache." }
+  - { path: "~/Library/Caches/kache", category: kache, risk: ask, drill: true, note: "Confirm before treating as safe-cache." }
   - { path: "~/Library/Caches/kache/store", category: kache-store, risk: ask }
 
 editors:

@@ -74,6 +74,19 @@ func hasCargoToml(dir string) bool {
 	return err == nil
 }
 
+func isWorktreeDir(p string, cat *catalog.Catalog) bool {
+	slash := filepath.ToSlash(p)
+	if cat == nil {
+		return false
+	}
+	for _, m := range cat.WorktreeMarkers {
+		if m.PathSuffix != "" && strings.HasSuffix(slash, m.PathSuffix) {
+			return true
+		}
+	}
+	return strings.Contains(slash, "/.grok/worktrees/") || strings.Contains(slash, "/.codex/worktrees/")
+}
+
 func artifactMatch(name string, arts []catalog.Artifact) (catalog.Artifact, bool) {
 	for _, a := range arts {
 		if a.Name != "" && a.Name == name {
@@ -84,14 +97,14 @@ func artifactMatch(name string, arts []catalog.Artifact) (catalog.Artifact, bool
 }
 
 func discoverWorkRoots(cat *catalog.Catalog, home string) []string {
-	return collectWorkRoots(cat, home, false)
+	return collectWorkRoots(cat, home, false, "")
 }
 
-func artifactWalkRoots(cat *catalog.Catalog, home string) []string {
-	return collectWorkRoots(cat, home, true)
+func artifactWalkRoots(cat *catalog.Catalog, home, mode string) []string {
+	return collectWorkRoots(cat, home, true, mode)
 }
 
-func collectWorkRoots(cat *catalog.Catalog, home string, artifactsOnly bool) []string {
+func collectWorkRoots(cat *catalog.Catalog, home string, artifactsOnly bool, mode string) []string {
 	var roots []string
 	listed := map[string]struct{}{}
 	for _, e := range cat.WorkRoots {
@@ -101,7 +114,13 @@ func collectWorkRoots(cat *catalog.Catalog, home string, artifactsOnly bool) []s
 		}
 		if st, err := os.Stat(p); err == nil && st.IsDir() {
 			listed[filepath.Base(p)] = struct{}{}
+			if cat.PathDisabled(p) {
+				continue
+			}
 			if artifactsOnly && !e.WalkArtifacts {
+				continue
+			}
+			if artifactsOnly && mode != "" && !catalog.HasScan(e.Scans, mode) {
 				continue
 			}
 			roots = append(roots, p)
@@ -135,6 +154,9 @@ func collectWorkRoots(cat *catalog.Catalog, home string, artifactsOnly bool) []s
 			continue
 		}
 		p := filepath.Join(home, ent.Name())
+		if cat.PathDisabled(p) {
+			continue
+		}
 		hit := false
 		for _, m := range markers {
 			if _, err := os.Stat(filepath.Join(p, m)); err == nil {
@@ -182,7 +204,7 @@ func runArtifacts(ctx *Context) error {
 			prune[a.Name] = struct{}{}
 		}
 	}
-	roots := artifactWalkRoots(ctx.Catalog, ctx.Home)
+	roots := artifactWalkRoots(ctx.Catalog, ctx.Home, ctx.Mode)
 	seen := map[string]struct{}{}
 	tracked := map[string]map[string]bool{}
 	for _, root := range roots {
@@ -206,6 +228,9 @@ func runArtifacts(ctx *Context) error {
 			}
 			name := d.Name()
 			if d.IsDir() && name == ".git" {
+				return filepath.SkipDir
+			}
+			if d.IsDir() && isWorktreeDir(p, ctx.Catalog) {
 				return filepath.SkipDir
 			}
 			if d.Type()&os.ModeSymlink != 0 {
@@ -244,6 +269,25 @@ func runArtifacts(ctx *Context) error {
 				if _, err := os.Stat(filepath.Join(p, "pyvenv.cfg")); err == nil {
 					emitArtifact(ctx, p, "python-venv", findings.RiskRebuildable, idle, seen, tracked)
 					return filepath.SkipDir
+				}
+				for _, a := range ctx.Catalog.Artifacts {
+					if a.MarkerFile == "" || a.MarkerFile == "pyvenv.cfg" {
+						continue
+					}
+					if _, err := os.Stat(filepath.Join(p, a.MarkerFile)); err != nil {
+						continue
+					}
+					if len(a.ThenCheck) > 0 {
+						for _, sub := range a.ThenCheck {
+							sp := filepath.Join(p, sub)
+							if st, err := os.Stat(sp); err == nil && st.IsDir() {
+								emitArtifact(ctx, sp, a.Ecosystem, findings.Risk(a.Risk), idle, seen, tracked)
+							}
+						}
+					} else if a.Risk != "keep" {
+						emitArtifact(ctx, p, a.Ecosystem, findings.Risk(a.Risk), idle, seen, tracked)
+						return filepath.SkipDir
+					}
 				}
 			}
 			return nil

@@ -39,8 +39,16 @@ func defaultScans(e Entry, workRoot bool) []string {
 }
 
 func hasScan(scans []string, mode string) bool {
-	if mode == "full" {
+	if len(scans) == 0 {
 		return true
+	}
+	if mode == "full" {
+		for _, s := range scans {
+			if s == "full" {
+				return true
+			}
+		}
+		return false
 	}
 	for _, s := range scans {
 		if s == mode {
@@ -48,6 +56,11 @@ func hasScan(scans []string, mode string) bool {
 		}
 	}
 	return false
+}
+
+// HasScan reports whether an entry's scan tags include mode.
+func HasScan(scans []string, mode string) bool {
+	return hasScan(scans, mode)
 }
 
 func union(a, b []string) []string {
@@ -183,6 +196,10 @@ func Merge(bundled *Catalog, ov *Overlay, home string) *Catalog {
 	}
 
 	out.disableScans = append([]string{}, ov.DisableScans...)
+	for d := range disabled {
+		out.disablePaths = append(out.disablePaths, d)
+		out.WorkRootDiscover.SkipNames = append(out.WorkRootDiscover.SkipNames, filepath.Base(d))
+	}
 	out.userModes = ov.Modes
 	return &out
 }

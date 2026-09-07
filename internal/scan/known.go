@@ -71,6 +71,7 @@ func entryFinding(e catalog.Entry, path string, sz size.Result) findings.Finding
 // Known sizes catalog paths for the current mode. Does not Register.
 func Known(cat *catalog.Catalog, mode, home string, rep *findings.Report) {
 	seen := map[string]struct{}{}
+	var fullTrees []string
 	for _, e := range cat.ModePaths(mode) {
 		for _, raw := range expandGlobs(e) {
 			p := catalog.ExpandPath(raw, home)
@@ -81,9 +82,12 @@ func Known(cat *catalog.Catalog, mode, home string, rep *findings.Report) {
 			if _, ok := seen[key]; ok {
 				continue
 			}
+			if nestedUnder(p, fullTrees) {
+				continue
+			}
 			var sz size.Result
-			if e.AlwaysDrill || e.Category == "tmp" || e.Category == "tmp-user" {
-				// Do not recurse; tmp children are a separate phase.
+			inodeOnly := e.AlwaysDrill || e.Category == "tmp" || e.Category == "tmp-user" || (e.Drill && e.Risk == "keep")
+			if inodeOnly {
 				fi, err := os.Lstat(p)
 				if err != nil {
 					if os.IsNotExist(err) {
@@ -109,7 +113,54 @@ func Known(cat *catalog.Catalog, mode, home string, rep *findings.Report) {
 				continue
 			}
 			seen[key] = struct{}{}
+			if !inodeOnly {
+				fullTrees = append(fullTrees, key)
+			}
 			rep.Findings = append(rep.Findings, entryFinding(e, p, sz))
+			if e.GlobChildren != "" {
+				emitGlobChildren(e, p, seen, rep)
+			}
 		}
+	}
+}
+
+func nestedUnder(p string, trees []string) bool {
+	clean := filepath.Clean(p)
+	for _, t := range trees {
+		if t != "" && clean != t && (strings.HasPrefix(clean, t+string(os.PathSeparator)) || strings.HasPrefix(clean, t+"/")) {
+			return true
+		}
+	}
+	return false
+}
+
+func emitGlobChildren(e catalog.Entry, dir string, seen map[string]struct{}, rep *findings.Report) {
+	matches, err := filepath.Glob(filepath.Join(dir, e.GlobChildren))
+	if err != nil {
+		return
+	}
+	n := 0
+	for _, m := range matches {
+		if n >= 4096 {
+			break
+		}
+		key := seenKey(m)
+		if _, ok := seen[key]; ok {
+			continue
+		}
+		fi, err := os.Lstat(m)
+		if err != nil || fi.Mode()&os.ModeSymlink != 0 {
+			continue
+		}
+		sz := size.Of(m)
+		noteUnreadable(rep, sz.Unreadable...)
+		if sz.Missing || sz.Err != nil {
+			continue
+		}
+		seen[key] = struct{}{}
+		child := e
+		child.GlobChildren = ""
+		rep.Findings = append(rep.Findings, entryFinding(child, m, sz))
+		n++
 	}
 }

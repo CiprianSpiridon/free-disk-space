@@ -86,7 +86,36 @@ func ParseVolume(diskutilOut string) (findings.Volume, error) {
 	if v.ContainerBytes < 0 {
 		v.ContainerBytes = v.InUseBytes + v.FreeBytes
 	}
+	v.DataVolumeUsedBytes = parseDataVolume(diskutilOut)
 	return v, nil
+}
+
+var (
+	reVolSplit = regexp.MustCompile(`(?m)^\s*Volume disk`)
+	reVolName  = regexp.MustCompile(`Name:\s+(.+)`)
+	reVolUsed  = regexp.MustCompile(`(?i)Capacity in use by this volume:\s+(\d+)\s*B`)
+)
+
+func parseDataVolume(s string) int64 {
+	parts := reVolSplit.Split(s, -1)
+	var best int64
+	for _, part := range parts {
+		name := ""
+		if m := reVolName.FindStringSubmatch(part); len(m) > 1 {
+			name = strings.TrimSpace(m[1])
+		}
+		if !strings.Contains(strings.ToLower(name), "data") {
+			continue
+		}
+		if strings.Contains(strings.ToLower(name), "preboot") {
+			continue
+		}
+		n := parseBytesParen(reVolUsed, part)
+		if n > best {
+			best = n
+		}
+	}
+	return best
 }
 
 // VolumePhaseName is the registered phase name.

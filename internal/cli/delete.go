@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"strings"
 
+	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 	"github.com/CiprianSpiridon/free-disk-space/internal/reclaim"
 	"github.com/CiprianSpiridon/free-disk-space/internal/scan"
 )
@@ -65,6 +66,14 @@ func runDelete(g *Global, args []string) error {
 		if err := reclaim.ApplyOne(f); err != nil {
 			return err
 		}
+		var keep []findings.Finding
+		for _, x := range r.Findings {
+			if x.ID != id {
+				keep = append(keep, x)
+			}
+		}
+		r.Findings = keep
+		_ = scan.WriteLastScan(scan.LastScanPath(), r)
 		fmt.Fprintf(g.Stdout, "deleted %s %s (%d bytes)\n", f.ID, f.Path, f.Bytes)
 	}
 	return nil

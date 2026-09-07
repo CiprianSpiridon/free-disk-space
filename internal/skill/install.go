@@ -3,7 +3,7 @@ package skill
 import (
 	"os"
 
-	skilldata "github.com/CiprianSpiridon/free-disk-space/skill"
+	skilldata "github.com/CiprianSpiridon/free-disk-space/skills"
 )
 
 // Markdown is the bundled SKILL.md.

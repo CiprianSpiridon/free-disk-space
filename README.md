@@ -24,6 +24,7 @@ Scan never deletes. `freedisk delete <id>` is opt-in with explicit ids.
 | [findings.schema.json](findings.schema.json) | JSON contract for scan output |
 | [research/mole-patterns.md](research/mole-patterns.md) | What to steal from [tw93/Mole](https://github.com/tw93/mole) (design, not code) |
 | [NOTES.md](NOTES.md) | Research diary + snapshot of one Mac (2026-09-06). Not the runtime spec. |
+| [skills/freedisk/](skills/freedisk/) | Agent skill (`SKILL.md`) for [skills.sh](https://skills.sh) indexing. `freedisk skill install` copies it into local CLIs. |
 
 ## Agent: run an audit now
 

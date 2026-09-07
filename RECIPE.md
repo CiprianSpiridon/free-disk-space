@@ -142,12 +142,23 @@ That is the APFS sealed-volume trap.
 ### Phase 1 — Known-path catalog (seconds–1 min)
 
 For every `path` in `catalog/macos-hotspots.yaml` that exists, `du -sk`.
-Do not walk unknown trees yet.
+Size **deeper paths first** (Docker.raw, kache/store, uv) and still emit
+them when they sit under a larger catalog parent (Caches, Containers).
+Do not swallow named hotspots into a parent blob.
+
+`drill: true` directories are a depth-1 of their children here (same
+cost as walking the parent, but the children have names). Umbrella
+`keep` roots (`~/Library`, tmp, `/Applications`) stay inode-only.
+
+Work roots glob `~/work*` so `~/work_cip` is a bucket without overlay.
 
 This phase is where Docker, Grok, Codex, npm, Xcode, Homebrew Android
 SDK, uv, pnpm, and tmp roots (`/tmp`, `/var/tmp`, `$TMPDIR`) usually show up.
 Tmp roots with `always_drill` also emit depth-1 children here (do not wait
 for the 1 GiB drill phase).
+
+Then a cheap **home depth-1** (`~/*` and `~/.[^.]*`) and `~/Library/*`
+for anything ≥ `report_bytes` not already catalogued.
 
 ### Phase 2 — Depth-1 of big roots
 
@@ -518,7 +529,7 @@ We are narrower: developer reclaim for agents, not a consumer Mac cleaner.
 
 ```text
 freedisk scan              # phases 0–8, JSON + markdown. Never deletes.
-freedisk scan --quick      # volume + known + tmp children (e.g. /private/tmp/kensi-*). Never deletes.
+freedisk scan --quick      # volume + known (named children) + home depth-1 + tmp children. Never deletes.
 freedisk why               # top reclaimable (report)
 freedisk catalog / scans   # optional overlay; bundled catalog is the starting point
 freedisk delete <id> [<id>…]  # ONLY mutate path. Explicit ids. Confirm each.

@@ -14,7 +14,7 @@ const agentGuide = `freedisk — report what is eating disk on this Mac. Scan ne
 Starting point: no overlay required. Bundled catalog covers caches, SDKs, tmp,
 Desktop/Downloads, generic work roots, and auto-discovered project folders.
 
-Modes (--quick is volume+known+tmp, NOT cargo-target-only):
+Modes (--quick is volume+known+home depth-1+tmp, NOT cargo-target-only):
   freedisk scan --quick --json
   freedisk scan --dev --json
   freedisk scan --mode=rust --json

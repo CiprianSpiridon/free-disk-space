@@ -19,7 +19,7 @@ func init() {
 const scanLong = `scan [--quick|--dev|--mode=NAME] [--json] [--quiet]
 
 Modes:
-  quick  volume + known catalog paths + tmp children (not cargo-target-only)
+  quick  volume + known catalog paths (named children, not parent blobs) + home/Library depth-1 + tmp children
   dev    leftover worktrees + project artifacts + catalog paths tagged dev
   full   all enabled phases (default)
 

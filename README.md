@@ -32,7 +32,8 @@ Scan never deletes. `freedisk delete <id>` is opt-in with explicit ids.
 go run ./cmd/freedisk scan --quick --json
 ```
 
-`--quick` is volume + known catalog paths + **tmp children** (including
+`--quick` is volume + known catalog paths (named children, not parent
+blobs) + home/Library depth-1 + **tmp children** (including
 `/private/tmp/kensi-*` and other fat `/tmp` dirs). Markdown tables include
 **id, full path, last used, and a reclaim command**. Progress goes to
 stderr. Scan never deletes. `freedisk delete <id>` is the only mutate

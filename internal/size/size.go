@@ -24,12 +24,21 @@ type Result struct {
 // Of returns allocated (st_blocks*512) and apparent (st_size) for path.
 // Directories are walked in-process. Symlinks are not followed.
 func Of(path string) Result {
-	return OfContext(context.Background(), path)
+	return of(context.Background(), path, nil)
 }
 
 // OfContext is Of with a cancel/deadline. On cancel the walk stops and
 // Allocated is not returned (incomplete).
 func OfContext(ctx context.Context, path string) Result {
+	return of(ctx, path, nil)
+}
+
+// OfSkipping is Of, but does not descend into skip paths (already sized children).
+func OfSkipping(path string, skip []string) Result {
+	return of(context.Background(), path, skip)
+}
+
+func of(ctx context.Context, path string, skip []string) Result {
 	if ctx == nil {
 		ctx = context.Background()
 	}
@@ -48,7 +57,20 @@ func OfContext(ctx context.Context, path string) Result {
 		a, p := fromInfo(fi)
 		return Result{Allocated: a, Apparent: p}
 	}
-	return dirSize(ctx, path)
+	return dirSize(ctx, path, skip)
+}
+
+func skipListed(p string, skip []string) bool {
+	for _, s := range skip {
+		if s == "" {
+			continue
+		}
+		s = filepath.Clean(s)
+		if p == s || strings.HasPrefix(p, s+string(os.PathSeparator)) {
+			return true
+		}
+	}
+	return false
 }
 
 var extraSkip []string
@@ -100,7 +122,7 @@ func setHeartbeatEvery(d time.Duration) {
 	hbMu.Unlock()
 }
 
-func dirSize(ctx context.Context, root string) Result {
+func dirSize(ctx context.Context, root string, skip []string) Result {
 	var alloc, app int64
 	var unread []string
 	seenIno := map[[2]uint64]struct{}{}
@@ -110,6 +132,12 @@ func dirSize(ctx context.Context, root string) Result {
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if ctx.Err() != nil {
 			return fs.SkipAll
+		}
+		if p != root && skipListed(p, skip) {
+			if d != nil && d.IsDir() {
+				return fs.SkipDir
+			}
+			return nil
 		}
 		visited++
 		now := time.Now()

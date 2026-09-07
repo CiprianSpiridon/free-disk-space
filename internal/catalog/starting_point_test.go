@@ -49,4 +49,13 @@ func TestStartingPoint(t *testing.T) {
 	if !arts {
 		t.Fatal("tsx-cache")
 	}
+	sawWorkGlob := false
+	for _, e := range c.WorkRoots {
+		if e.Glob && strings.Contains(e.Path, "work*") {
+			sawWorkGlob = true
+		}
+	}
+	if !sawWorkGlob {
+		t.Fatal("work roots should glob work*")
+	}
 }

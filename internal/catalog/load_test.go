@@ -52,6 +52,18 @@ func TestLoadBundledAndroidAndTmpAndDiscover(t *testing.T) {
 	}
 }
 
+func TestExpandEntryGlobWorkStar(t *testing.T) {
+	home := t.TempDir()
+	p := filepath.Join(home, "work_cip")
+	if err := os.Mkdir(p, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	got := ExpandEntry(Entry{Path: filepath.Join(home, "work*"), Glob: true}, home)
+	if len(got) != 1 || got[0] != p {
+		t.Fatalf("got %v want %s", got, p)
+	}
+}
+
 func TestLoadBundled(t *testing.T) {
 	c, err := LoadBundled()
 	if err != nil {

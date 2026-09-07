@@ -107,23 +107,29 @@ func artifactWalkRoots(cat *catalog.Catalog, home, mode string) []string {
 func collectWorkRoots(cat *catalog.Catalog, home string, artifactsOnly bool, mode string) []string {
 	var roots []string
 	listed := map[string]struct{}{}
+	have := map[string]struct{}{}
 	for _, e := range cat.WorkRoots {
-		p := catalog.ExpandPath(e.Path, home)
-		if p == "" {
-			continue
-		}
-		if st, err := os.Stat(p); err == nil && st.IsDir() {
-			listed[filepath.Base(p)] = struct{}{}
-			if cat.PathDisabled(p) {
+		for _, p := range catalog.ExpandEntry(e, home) {
+			if p == "" {
 				continue
 			}
-			if artifactsOnly && !e.WalkArtifacts {
-				continue
+			if st, err := os.Stat(p); err == nil && st.IsDir() {
+				listed[filepath.Base(p)] = struct{}{}
+				if cat.PathDisabled(p) {
+					continue
+				}
+				if artifactsOnly && !e.WalkArtifacts {
+					continue
+				}
+				if artifactsOnly && mode != "" && !catalog.HasScan(e.Scans, mode) {
+					continue
+				}
+				if _, ok := have[p]; ok {
+					continue
+				}
+				have[p] = struct{}{}
+				roots = append(roots, p)
 			}
-			if artifactsOnly && mode != "" && !catalog.HasScan(e.Scans, mode) {
-				continue
-			}
-			roots = append(roots, p)
 		}
 	}
 	d := cat.WorkRootDiscover

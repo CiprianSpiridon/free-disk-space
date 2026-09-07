@@ -51,6 +51,28 @@ func TestUnreadablePermission(t *testing.T) {
 	}
 }
 
+func TestOfSkippingOmitsChildTree(t *testing.T) {
+	dir := t.TempDir()
+	child := filepath.Join(dir, "child")
+	if err := os.Mkdir(child, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(child, "b"), make([]byte, 32<<10), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(dir, "sib"), make([]byte, 8<<10), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	full := Of(dir)
+	skipped := OfSkipping(dir, []string{child})
+	if skipped.Allocated >= full.Allocated {
+		t.Fatalf("skip should drop child: full=%d skip=%d", full.Allocated, skipped.Allocated)
+	}
+	if skipped.Allocated <= 0 {
+		t.Fatal("sibling should still count")
+	}
+}
+
 func TestHeartbeatFires(t *testing.T) {
 	dir := t.TempDir()
 	for i := 0; i < 20; i++ {

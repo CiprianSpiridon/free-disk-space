@@ -29,7 +29,7 @@ home:
 work_roots:
   # Generic defaults. Missing paths skip. Overlay can add more; not required
   # for a useful scan — see work_root_discover for $HOME depth-1 project dirs.
-  - { path: "~/work", category: work, risk: keep, walk_artifacts: true }
+  - { path: "~/work*", glob: true, category: work, risk: keep, walk_artifacts: true }
   - { path: "~/src", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/Projects", category: work, risk: keep, walk_artifacts: true }
   - { path: "~/dev", category: work, risk: keep, walk_artifacts: true }

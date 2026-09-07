@@ -23,7 +23,7 @@ freedisk why --json
 
 ## Modes
 
-- `--quick` — volume + known catalog paths + **tmp children** (not cargo-target-only). Catches `/private/tmp/kensi-*` and other fat `/tmp` dirs.
+- `--quick` — volume + known catalog paths + **home/Library depth-1** + **tmp children** (not cargo-target-only). Named hotspots (kache, Docker.raw, uv, Playwright) are listed even when they sit under a larger parent. `~/work*` is globbed so `~/work_cip` shows up. Catches `/private/tmp/kensi-*` and other fat `/tmp` dirs.
 - `--dev` — leftover worktrees + project artifacts (`node_modules`, `target`, `.next`, venvs) + catalog paths tagged `dev`.
 - default / `--mode=full` — all enabled phases.
 

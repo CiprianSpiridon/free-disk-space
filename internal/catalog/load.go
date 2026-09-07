@@ -207,6 +207,26 @@ func ResolveCatalogPath(explicit string) (string, []string, error) {
 	return "", tried, nil
 }
 
+// ExpandEntry expands ~/$ENV and optional globs for one catalog row.
+func ExpandEntry(e Entry, home string) []string {
+	p := ExpandPath(e.Path, home)
+	if p == "" {
+		return nil
+	}
+	if !e.Glob {
+		return []string{p}
+	}
+	m, err := filepath.Glob(p)
+	if err != nil || len(m) == 0 {
+		return nil
+	}
+	const capN = 4096
+	if len(m) > capN {
+		return m[:capN]
+	}
+	return m
+}
+
 // ExpandPath expands ~ and $ENV in a catalog path.
 func ExpandPath(p, home string) string {
 	if home == "" {

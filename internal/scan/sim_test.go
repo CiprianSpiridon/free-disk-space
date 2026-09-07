@@ -55,7 +55,7 @@ func TestSimRuntimeUnusedWhenNeverBooted(t *testing.T) {
     {"identifier":"rt-used","name":"iOS 18"},
     {"identifier":"rt-never","name":"iOS 17"}
   ]
-}`), &rep, booted)
+}`), &rep, booted, "")
 	var used, never *findings.Finding
 	for i := range rep.Findings {
 		f := &rep.Findings[i]
@@ -77,6 +77,32 @@ func TestSimRuntimeUnusedWhenNeverBooted(t *testing.T) {
 	}
 	if never.Risk != findings.RiskUnusedRuntime {
 		t.Fatalf("never risk %s", never.Risk)
+	}
+}
+
+func TestSimRuntimeSizesVolume(t *testing.T) {
+	vol := t.TempDir()
+	img := filepath.Join(vol, "watchOS_23S303")
+	_ = os.Mkdir(img, 0o755)
+	_ = os.WriteFile(filepath.Join(img, "blob"), make([]byte, 32<<10), 0o644)
+	rep := findings.NewReport("/u")
+	ParseSimctlRuntimes([]byte(`{
+  "runtimes": [
+    {"identifier":"com.apple.CoreSimulator.SimRuntime.watchOS-26-2","name":"watchOS 26.2","buildversion":"23S303"}
+  ]
+}`), &rep, map[string]bool{}, vol)
+	if len(rep.Findings) != 1 {
+		t.Fatalf("%+v", rep.Findings)
+	}
+	f := rep.Findings[0]
+	if f.Path != img {
+		t.Fatalf("path %s", f.Path)
+	}
+	if f.Bytes <= 0 {
+		t.Fatal("expected volume bytes")
+	}
+	if f.Risk != findings.RiskUnusedRuntime {
+		t.Fatal(f.Risk)
 	}
 }
 

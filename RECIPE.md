@@ -183,6 +183,13 @@ Stop when children are < ~500 MB or the child is a known file
 Skip `keep` / `never` / `safe-cache` / tmp roots / artifact leaves
 (`node_modules`, `target`, …). Largest parents first.
 
+After drill, classify toolchains: newest iOS DeviceSupport is keep;
+older folders unused-runtime. Extra rustup/nvm versions unused-runtime
+(`rustup toolchain uninstall`, `nvm uninstall`). Agent worktrees reclaim
+with `rm -rf PATH`; git linked worktrees with `git worktree remove --force`.
+simctl runtime findings include CoreSimulator Volumes bytes. `--dev`/full
+also run `docker system df` and `brew autoremove --dry-run` (best-effort).
+
 This phase is **time-budgeted** (about 3 minutes, 20s per child walk).
 Keep whatever children were sized. **Never fail the scan** with
 `drill timed out` — print the report. Progress goes to stderr.

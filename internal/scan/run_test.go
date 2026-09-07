@@ -61,11 +61,11 @@ func TestRecipePhaseOrder(t *testing.T) {
 	var names []string
 	for _, p := range list {
 		switch p.Name {
-		case VolumePhaseName, KnownPhaseName, "tmp", "drill", "artifacts", "worktrees", "apple-sim", "android-sim":
+		case VolumePhaseName, KnownPhaseName, "tmp", "drill", "toolchains", "artifacts", "worktrees", "apple-sim", "android-sim", "apis":
 			names = append(names, p.Name)
 		}
 	}
-	want := []string{VolumePhaseName, KnownPhaseName, "tmp", "drill", "artifacts", "worktrees", "apple-sim", "android-sim"}
+	want := []string{VolumePhaseName, KnownPhaseName, "tmp", "drill", "toolchains", "artifacts", "worktrees", "apple-sim", "android-sim", "apis"}
 	if strings.Join(names, ",") != strings.Join(want, ",") {
 		t.Fatalf("got %v want %v", names, want)
 	}

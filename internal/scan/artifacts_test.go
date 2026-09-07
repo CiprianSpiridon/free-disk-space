@@ -4,6 +4,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
@@ -178,5 +179,47 @@ func TestArtifactsSkipsWorkRootWithoutWalkFlag(t *testing.T) {
 		if filepath.Base(f.Path) == "node_modules" {
 			t.Fatal("walked work root with walk_artifacts false")
 		}
+	}
+}
+
+func TestArtifactsCopyBackupDir(t *testing.T) {
+	home := t.TempDir()
+	cp := filepath.Join(home, "work", "ulpi-v4 copy")
+	bk := filepath.Join(home, "work", "ulpi-v4-bk-1")
+	if err := os.MkdirAll(cp, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.MkdirAll(bk, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(cp, "blob"), make([]byte, 6<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(bk, "blob"), make([]byte, 6<<20), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	cat := &catalog.Catalog{
+		WorkRoots:  []catalog.Entry{{Path: filepath.Join(home, "work"), WalkArtifacts: true, Scans: []string{"dev", "full"}}},
+		Thresholds: catalog.Thresholds{MaxWalkDepth: 8, ArtifactListMinBytes: 5 << 20},
+	}
+	rep := findings.NewReport(home)
+	ctx := &Context{Mode: "dev", Catalog: cat, Home: home, Report: &rep}
+	if err := runArtifacts(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var sawCopy, sawBk bool
+	for _, f := range rep.Findings {
+		if f.Path == cp && f.Category == "copy-backup" && f.Risk == findings.RiskAsk {
+			sawCopy = true
+			if f.Reclaim == nil || !strings.Contains(f.Reclaim.Cmd, "rm -rf") {
+				t.Fatalf("%v", f.Reclaim)
+			}
+		}
+		if f.Path == bk && f.Category == "copy-backup" {
+			sawBk = true
+		}
+	}
+	if !sawCopy || !sawBk {
+		t.Fatalf("copy=%v bk=%v %+v", sawCopy, sawBk, rep.Findings)
 	}
 }

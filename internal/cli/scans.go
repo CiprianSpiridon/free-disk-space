@@ -20,7 +20,7 @@ scans add NAME --types TYPE[,TYPE]
 scans remove NAME
 `
 
-var builtinPhases = []string{"volume", "known", "tmp", "drill", "artifacts", "worktrees", "apple-sim", "android-sim"}
+var builtinPhases = []string{"volume", "known", "tmp", "drill", "toolchains", "artifacts", "worktrees", "apple-sim", "android-sim", "apis"}
 
 func runScans(g *Global, args []string) error {
 	if len(args) == 0 {

@@ -110,9 +110,9 @@ xcode:
   - { path: "/Applications/Xcode.app", category: xcode-app, risk: keep }
   - { path: "~/Library/Developer/Xcode/DerivedData", category: xcode-deriveddata, risk: safe-cache, reclaim: "rm -rf ~/Library/Developer/Xcode/DerivedData" }
   - { path: "~/Library/Developer/Xcode/Archives", category: xcode-archives, risk: ask }
-  - { path: "~/Library/Developer/Xcode/iOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime, drill: true }
-  - { path: "~/Library/Developer/Xcode/watchOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime }
-  - { path: "~/Library/Developer/Xcode/tvOS DeviceSupport", category: xcode-devicesupport, risk: unused-runtime }
+  - { path: "~/Library/Developer/Xcode/iOS DeviceSupport", category: xcode-devicesupport, risk: ask, drill: true, note: "Keep the newest iOS folder; older versions are unused-runtime." }
+  - { path: "~/Library/Developer/Xcode/watchOS DeviceSupport", category: xcode-devicesupport, risk: ask, drill: true }
+  - { path: "~/Library/Developer/Xcode/tvOS DeviceSupport", category: xcode-devicesupport, risk: ask, drill: true }
   - { path: "~/Library/Developer/CoreSimulator", category: simulator-devices, risk: ask, drill: true, note: "Per-device unused-runtime comes from simctl lastBootedAt." }
   - { path: "~/Library/Developer/CoreSimulator/Devices", category: simulator-devices, risk: ask }
   - { path: "~/Library/Developer/CoreSimulator/Caches", category: simulator-cache, risk: safe-cache }
@@ -151,8 +151,8 @@ docker_vms:
 node:
   - { path: "~/.npm", category: npm-cache, risk: safe-cache, reclaim: "npm cache clean --force" }
   - { path: "~/.npm/_cacache", category: npm-cache, risk: safe-cache, reclaim: "npm cache clean --force" }
-  - { path: "~/.nvm", category: nvm, risk: unused-runtime, drill: true }
-  - { path: "~/.nvm/versions/node", category: nvm-versions, risk: unused-runtime, drill: true }
+  - { path: "~/.nvm", category: nvm, risk: ask, drill: true, note: "Keep the version matching node -v if it is nvm; extras unused-runtime." }
+  - { path: "~/.nvm/versions/node", category: nvm-versions, risk: ask, drill: true }
   - { path: "~/.bun", category: bun, risk: safe-cache }
   - { path: "~/.bun/install/cache", category: bun-cache, risk: safe-cache, reclaim: "bun pm cache rm" }
   - { path: "~/Library/Caches/pnpm", category: pnpm-cache, risk: safe-cache }
@@ -206,8 +206,8 @@ rust:
   - { path: "~/.cargo/registry/src", category: cargo-registry-src, risk: ask }
   - { path: "~/.cargo/registry", category: cargo-registry, risk: ask }
   - { path: "~/.cargo/git", category: cargo-git, risk: ask }
-  - { path: "~/.rustup", category: rustup, risk: unused-runtime, drill: true }
-  - { path: "~/.rustup/toolchains", category: rust-toolchains, risk: unused-runtime, drill: true }
+  - { path: "~/.rustup", category: rustup, risk: keep, drill: true, note: "Never delete ~/.rustup as a whole. Classify toolchains." }
+  - { path: "~/.rustup/toolchains", category: rust-toolchains, risk: keep, drill: true }
 
 go_java_php_ruby:
   - { path: "~/go/pkg", category: go-modcache, risk: safe-cache, reclaim: "go clean -modcache" }

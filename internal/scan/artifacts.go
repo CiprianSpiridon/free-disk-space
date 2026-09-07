@@ -236,6 +236,9 @@ func runArtifacts(ctx *Context) error {
 			if d.IsDir() && name == ".git" {
 				return filepath.SkipDir
 			}
+			if d.IsDir() && depth > 0 && isCopyBackupName(name) {
+				emitCopyBackup(ctx, p, seen)
+			}
 			if d.IsDir() && isWorktreeDir(p, ctx.Catalog) {
 				return filepath.SkipDir
 			}
@@ -340,4 +343,44 @@ func emitArtifact(ctx *Context, p, cat string, risk findings.Risk, idleDays int,
 		f.Reclaim = nil
 	}
 	ctx.Report.Findings = append(ctx.Report.Findings, f)
+}
+
+func isCopyBackupName(name string) bool {
+	n := strings.ToLower(name)
+	if strings.Contains(n, " copy") || strings.HasSuffix(n, " copy") {
+		return true
+	}
+	if strings.Contains(n, "-bk-") || strings.Contains(n, "-backup") || strings.HasSuffix(n, ".bak") || strings.HasSuffix(n, "-bk") {
+		return true
+	}
+	return false
+}
+
+func emitCopyBackup(ctx *Context, p string, seen map[string]struct{}) {
+	if _, ok := seen[p]; ok {
+		return
+	}
+	sz := size.Of(p)
+	noteUnreadable(ctx.Report, sz.Unreadable...)
+	if sz.Missing || sz.Allocated == 0 {
+		return
+	}
+	min := ctx.Catalog.Thresholds.ArtifactListMinBytes
+	if min == 0 {
+		min = 5 << 20
+	}
+	if sz.Allocated < min {
+		return
+	}
+	seen[p] = struct{}{}
+	ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{
+		ID:       findings.IDSlug("copy", p),
+		Path:     p,
+		Bytes:    sz.Allocated,
+		Category: "copy-backup",
+		Risk:     findings.RiskAsk,
+		LastUsed: lastUsedOf(p),
+		Why:      "project copy/backup name",
+		Reclaim:  &findings.Reclaim{Cmd: rmRf(p)},
+	})
 }

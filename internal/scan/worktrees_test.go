@@ -32,13 +32,20 @@ func TestWorktreesClaudeCountNoRmRoot(t *testing.T) {
 	if len(rep.Findings) == 0 {
 		t.Fatal("no findings")
 	}
+	sawChildRm := false
 	for _, f := range rep.Findings {
 		if f.Reclaim != nil && strings.Contains(f.Reclaim.Cmd, "rm -rf") && strings.HasSuffix(f.Path, "worktrees") {
 			t.Fatalf("rm -rf of worktrees root: %s", f.Reclaim.Cmd)
 		}
+		if f.Reclaim != nil && strings.Contains(f.Reclaim.Cmd, "rm -rf") && (strings.HasSuffix(f.Path, "/a") || strings.HasSuffix(f.Path, "/b")) {
+			sawChildRm = true
+		}
 		if f.Count != 2 && f.Path == wt {
 			t.Fatalf("count=%d", f.Count)
 		}
+	}
+	if !sawChildRm {
+		t.Fatal("claude worktree children need rm -rf PATH")
 	}
 }
 
@@ -162,6 +169,11 @@ func TestGitWorktreePorcelainSkipsMain(t *testing.T) {
 	}
 	if !sawExtra {
 		t.Fatalf("missing extra worktree: %+v", rep.Findings)
+	}
+	for _, f := range rep.Findings {
+		if f.Path == extra && (f.Reclaim == nil || !strings.Contains(f.Reclaim.Cmd, "git worktree remove")) {
+			t.Fatalf("git reclaim: %v", f.Reclaim)
+		}
 	}
 	if sawMain || sawMeta {
 		t.Fatalf("should skip main repo and metadata dir: %+v", rep.Findings)

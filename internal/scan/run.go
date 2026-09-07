@@ -16,8 +16,8 @@ import (
 
 // recipeOrder is RECIPE §4: volume, known, tmp, drill, artifacts, worktrees, sims.
 var recipeOrder = []string{
-	VolumePhaseName, KnownPhaseName, "tmp", "drill",
-	"artifacts", "worktrees", "apple-sim", "android-sim",
+	VolumePhaseName, KnownPhaseName, "tmp", "drill", "toolchains",
+	"artifacts", "worktrees", "apple-sim", "android-sim", "apis",
 }
 
 // Phase is a named scan step.

@@ -213,10 +213,18 @@ func emitOneWorktree(ctx *Context, p, kind string, idleDays, inflightHours, coun
 			why = "idle worktree"
 		}
 	}
-	cmd := "git worktree prune --expire 1.day"
 	ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{
 		ID: findings.IDSlug("worktree-"+kind, p), Path: p, Bytes: sz.Allocated,
 		Category: "worktree-" + kind, Risk: risk, Why: why, Count: count,
-		Reclaim: &findings.Reclaim{Cmd: cmd},
+		Reclaim: &findings.Reclaim{Cmd: worktreeReclaim(kind, p)},
 	})
+}
+
+func worktreeReclaim(kind, path string) string {
+	switch kind {
+	case "git", "git-metadata":
+		return "git worktree remove --force " + shellQuote(path)
+	default:
+		return rmRf(path)
+	}
 }

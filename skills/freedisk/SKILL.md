@@ -43,6 +43,7 @@ freedisk scans disable artifacts
 - Print reclaim commands. Do not run them from scan.
 - Progress is on stderr (`freedisk: phase …`); JSON stdout stays clean. `--quiet` silences progress.
 - Full `freedisk scan` time-budgets the drill phase. It keeps partial children and still prints the report. It does not abort with `drill timed out`.
+- Worktrees: grok/claude/codex/ulpi reclaim is `rm -rf PATH`; git linked worktrees use `git worktree remove --force PATH`. Newest iOS DeviceSupport is keep; older folders unused-runtime. Extra rustup/nvm versions unused-runtime. simctl runtimes include Volumes bytes. `--dev`/full also run `docker system df` and `brew autoremove --dry-run` when those tools exist.
 
 ## Delete (only if the human listed ids)
 

@@ -17,6 +17,8 @@ freedisk catalog unassign PATH --from quick
 freedisk scans disable artifacts
 ```
 
+`freedisk skill install` writes the agent skill into every local CLI (Claude, Codex, Cursor, Grok, …).
+
 `freedisk delete <id> [--yes]` is the only mutate path. **Never automatic.**
 Agents must not run delete unless the human listed those finding ids.
 There is no `delete --all`. Non-TTY requires `--yes`.

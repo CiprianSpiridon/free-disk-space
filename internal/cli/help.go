@@ -30,6 +30,11 @@ Scan types:
   freedisk scans disable artifacts
   freedisk scans add rust --types artifacts,worktrees
 
+Skill (install into every local agent CLI):
+  freedisk skill
+  freedisk skill install
+  freedisk skill list
+
 Delete (explicit ids only; never --all; never automatic):
   freedisk delete <id> [--yes]
   TTY types yes per id. Non-TTY requires --yes. Agents must not run delete unless

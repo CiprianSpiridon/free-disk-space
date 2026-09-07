@@ -14,7 +14,7 @@ func TestHelpGuide(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := buf.String()
-	for _, w := range []string{"catalog add", "unassign", "--glob", "scans disable", "scans add", "--mode", "--json", "delete", "never", "node_modules", "/tmp", "/private/tmp", "kensi", "git-tracked"} {
+	for _, w := range []string{"catalog add", "unassign", "--glob", "scans disable", "scans add", "--mode", "--json", "delete", "never", "node_modules", "/tmp", "/private/tmp", "kensi", "git-tracked", "skill install"} {
 		if !strings.Contains(s, w) {
 			t.Fatalf("missing %q in help", w)
 		}

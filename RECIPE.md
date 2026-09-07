@@ -14,7 +14,6 @@ Companion files:
 | **This file** | Procedure, invariants, finding contract, discovery rules |
 | `catalog/macos-hotspots.yaml` | Path list, artifact names, APIs, thresholds |
 | `findings.schema.json` | JSON shape every scan must emit |
-| `research/mole-patterns.md` | Patterns from [tw93/Mole](https://github.com/tw93/mole) — steal design, not code |
 | `NOTES.md` | Research diary + one-machine snapshot (not the runtime spec) |
 
 OS: **macOS / APFS only** (first version). Linux is a different catalog.
@@ -531,8 +530,7 @@ separate pool jobs.
 
 ## 13. CLI shape
 
-Mole’s split is the right product shape (see `research/mole-patterns.md`).
-We are narrower: developer reclaim for agents, not a consumer Mac cleaner.
+We are narrower than a consumer Mac cleaner: developer reclaim for agents.
 
 ```text
 freedisk scan              # phases 0–8, JSON + markdown. Never deletes.

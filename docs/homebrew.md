@@ -9,17 +9,15 @@ bottles; Homebrew builds from source with Go.
 
 ## Install (users)
 
-Until a tagged release exists, use HEAD:
-
-```text
-brew install --HEAD CiprianSpiridon/freedisk/freedisk
-```
-
-After v0.1.0 is tagged and the tap formula has `url` / `sha256` filled:
-
 ```text
 brew tap CiprianSpiridon/freedisk
 brew install freedisk
+```
+
+HEAD (latest main):
+
+```text
+brew install --HEAD CiprianSpiridon/freedisk/freedisk
 ```
 
 One-liner (taps implicitly):

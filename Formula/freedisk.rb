@@ -10,16 +10,10 @@
 class Freedisk < Formula
   desc "macOS disk-audit CLI; scan never deletes"
   homepage "https://github.com/CiprianSpiridon/free-disk-space"
-  # Fill after: git tag v0.1.0 && git push --tags
-  # then shasum -a 256 the GitHub archive tarball for that tag.
-  # url "https://github.com/CiprianSpiridon/free-disk-space/archive/refs/tags/v0.1.0.tar.gz"
-  # sha256 "..."
+  url "https://github.com/CiprianSpiridon/free-disk-space/archive/refs/tags/v0.1.0.tar.gz"
+  sha256 "f20b6eda7fe76622418bbc9d69d24636b79c5e1e25366f68428078ab2f195c1e"
   license "MIT"
   head "https://github.com/CiprianSpiridon/free-disk-space.git", branch: "main"
-
-  livecheck do
-    skip "HEAD-only until v0.1.0 is tagged and url/sha256 are filled"
-  end
 
   depends_on "go" => :build
   depends_on :macos

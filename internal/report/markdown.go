@@ -123,7 +123,7 @@ func highConfidence(f findings.Finding, opt Options) bool {
 	return false
 }
 
-// Markdown writes RECIPE §11 human report.
+// Markdown writes the human scan report.
 func Markdown(w io.Writer, r findings.Report, opt Options) error {
 	if opt.ArtifactIdleDays == 0 {
 		opt.ArtifactIdleDays = 30

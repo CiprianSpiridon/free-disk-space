@@ -198,8 +198,8 @@ Last scan lives at `$XDG_CACHE_HOME/freedisk/last-scan.json` (else
 
 ## Developers of this repo
 
-macOS + Go 1.22. The CLI **encodes** [RECIPE.md](RECIPE.md); do not invent
-a different phase order.
+macOS + Go 1.22. Phase order lives in `internal/scan/run.go` (`recipeOrder`).
+Do not invent a different one.
 
 ```bash
 go test ./...
@@ -224,8 +224,6 @@ Set `HOME` (and `XDG_CACHE_HOME`) to a temp dir in tests that call
 | `catalog/macos-hotspots.yaml` | bundled paths (`go:embed` via `catalog/embed.go`) |
 | `findings.schema.json` | JSON contract; keep `internal/findings` in sync |
 | `skills/freedisk/SKILL.md` | agent skill; `freedisk skill install` copies it |
-
-`NOTES.md` is a research diary, not the spec.
 
 ### Add a known path
 

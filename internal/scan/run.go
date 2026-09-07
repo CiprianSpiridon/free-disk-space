@@ -14,7 +14,7 @@ import (
 	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
-// recipeOrder is RECIPE §4: volume, known, tmp, drill, artifacts, worktrees, sims.
+// recipeOrder is volume, known, tmp, drill, toolchains, artifacts, worktrees, sims, apis.
 var recipeOrder = []string{
 	VolumePhaseName, KnownPhaseName, "tmp", "drill", "toolchains",
 	"artifacts", "worktrees", "apple-sim", "android-sim", "apis",

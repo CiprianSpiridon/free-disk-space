@@ -10,7 +10,7 @@
 version: 1
 os: macos
 
-# Phase 0 is volume inventory, not paths. See NOTES.md.
+# Phase 0 is volume inventory, not paths.
 
 # --- Phase 1: O(1) existence + du -sh ---
 

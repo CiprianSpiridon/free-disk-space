@@ -2,9 +2,11 @@
 name: freedisk
 description: >
   Audit macOS disk usage with the freedisk CLI and reclaim space only by
-  explicit finding ids. Use when the user asks what is eating disk, to scan
-  tmp/node_modules/worktrees/simulators, to free disk space, or runs
-  /freedisk. Scan never deletes.
+  explicit finding ids. After a scan, update this Mac's catalog overlay
+  (catalog add / unassign / disable) when paths are missing or unused.
+  Use when the user asks what is eating disk, to scan tmp/node_modules/
+  worktrees/simulators, to free disk space, or runs /freedisk. Scan never
+  deletes.
 ---
 
 # freedisk
@@ -42,32 +44,34 @@ Run full only for simulators or `docker system df` / `brew autoremove`.
 - `--dev` — leftover worktrees + project artifacts (`node_modules`, `target`, `.next`, venvs) + catalog paths tagged `dev`.
 - default / `--mode=full` — all enabled phases.
 
-No overlay is required for a first scan. The bundled catalog is generic.
-**This Mac** can differ: extra work roots, a fat cache the YAML never heard
-of, or a toolchain the user does not have. After a scan, you **may** change
-the per-user overlay (`freedisk catalog path` → `~/.config/freedisk/catalog.yaml`).
-Never edit the bundled `macos-hotspots.yaml`. Overlay is not delete.
+## Agents MUST update the catalog on this Mac
 
-When to **add** (user named a path, or home depth-1 / Ask-first showed a
-large dir that should be sized every scan):
+You **are allowed and expected** to change the per-user overlay after a
+scan. The bundled catalog is generic; this computer is not. Overlay is
+**not** delete. Never edit the repo file `catalog/macos-hotspots.yaml`.
+
+Overlay file: `freedisk catalog path` → `~/.config/freedisk/catalog.yaml`
+
+**Add** when the user names a path, or home depth-1 / Ask-first showed a
+large directory that should be sized on every later scan:
 
 ```bash
 freedisk catalog add PATH --scans quick,dev --risk ask --category user
 freedisk catalog add '/Users/you/work_*' --glob --scans dev
 ```
 
-When to **stop scanning** a path on this machine (user does not use it, or
-it is too expensive / not theirs):
+**Remove from a mode** or **skip entirely** when they do not use that
+path, it is not theirs, or scanning it is wasted:
 
 ```bash
-freedisk catalog unassign PATH --from quick     # drop from one mode
-freedisk catalog disable PATH                   # skip entirely
-freedisk scans disable artifacts                # skip a whole phase
+freedisk catalog unassign PATH --from quick
+freedisk catalog disable PATH
+freedisk scans disable artifacts
 ```
 
-`catalog list [--json]` shows the merged view. Re-scan after overlay changes.
-`CanCatalog` refuses `/`, `$HOME`, `/System`, tmp roots, etc. — same class
-as delete denials.
+`freedisk catalog list [--json]` is the merged view. Re-scan after
+changes. `CanCatalog` refuses `/`, `$HOME`, `/System`, tmp roots — same
+class as delete denials.
 
 ## Report rules
 

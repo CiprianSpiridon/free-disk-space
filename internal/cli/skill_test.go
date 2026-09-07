@@ -14,8 +14,12 @@ func TestSkillPrint(t *testing.T) {
 	if err := runSkill(g, nil); err != nil {
 		t.Fatal(err)
 	}
-	if !strings.Contains(buf.String(), "name: freedisk") {
-		t.Fatal(buf.String()[:min(120, buf.Len())])
+	s := buf.String()
+	if !strings.Contains(s, "name: freedisk") {
+		t.Fatal(s[:min(120, buf.Len())])
+	}
+	if !strings.Contains(s, "MUST update the catalog") {
+		t.Fatal("skill must tell agents to update the catalog")
 	}
 }
 

@@ -188,7 +188,24 @@ freedisk why --json
 | Start with `--quick`. Run `--dev` for artifacts/worktrees; full for simulators. | Invent a path from a truncated id. Use `.path`. |
 | Print reclaim commands from the report. | Run `delete` unless the human named those exact ids. |
 | Honor the time budgets above. | Call `delete --all` (it does not exist). Non-TTY delete without `--yes` fails. |
-| After a scan, `catalog add` / `unassign` / `disable` for **this Mac** when the user names a missing path or a fat dir that should (not) be sized every run. | Edit the bundled YAML. Overlay is not delete. |
+
+### Agents MUST update the catalog on this Mac
+
+You **are allowed and expected** to change the per-user overlay after a
+scan. The bundled catalog is generic; this computer is not. Overlay is
+**not** delete. Never edit `catalog/macos-hotspots.yaml`.
+
+```bash
+freedisk catalog path                          # ~/.config/freedisk/catalog.yaml
+freedisk catalog add PATH --scans quick,dev --risk ask --category user
+freedisk catalog unassign PATH --from quick
+freedisk catalog disable PATH
+freedisk catalog list --json
+```
+
+Add when the user names a path, or home depth-1 / Ask-first showed a large
+dir that should be sized every later scan. Unassign/disable when they do
+not use that path. Re-scan after changes.
 
 Exit codes: `0` report, `2` usage, `3` unknown id.
 

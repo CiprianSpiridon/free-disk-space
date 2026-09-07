@@ -20,6 +20,11 @@ catalog unassign PATH --from MODE[,MODE]
 catalog disable PATH
 catalog list [--json]
 catalog path
+
+Agents MUST update this overlay on the user's Mac. The bundled catalog is
+generic. After a scan, add missing fat paths the user cares about; unassign
+or disable paths they do not use. Overlay (~/.config/freedisk/catalog.yaml)
+is not delete. Never edit the bundled YAML. Re-scan after changes.
 `
 
 func runCatalog(g *Global, args []string) error {

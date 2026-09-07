@@ -14,7 +14,7 @@ func TestHelpGuide(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := buf.String()
-	for _, w := range []string{"catalog add", "unassign", "--glob", "scans disable", "scans add", "--mode", "--json", "delete", "never", "node_modules", "/tmp", "/private/tmp", "kensi", "git-tracked", "skill install"} {
+	for _, w := range []string{"catalog add", "unassign", "--glob", "scans disable", "scans add", "--mode", "--json", "delete", "never", "node_modules", "/tmp", "/private/tmp", "kensi", "git-tracked", "skill install", "Expected time", "Do not kill"} {
 		if !strings.Contains(s, w) {
 			t.Fatalf("missing %q in help", w)
 		}
@@ -36,6 +36,9 @@ func TestHelpScanCatalog(t *testing.T) {
 	}
 	if !strings.Contains(s, "never deletes") && !strings.Contains(s, "never delete") {
 		t.Fatal(s)
+	}
+	if !strings.Contains(s, "1-5 min") || !strings.Contains(s, "still walking") {
+		t.Fatal("scan help must state expected time", s)
 	}
 }
 

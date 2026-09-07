@@ -9,6 +9,10 @@ go run ./cmd/freedisk scan --quick --json
 go run ./cmd/freedisk scan --dev --json
 ```
 
+Scan duration on a full developer Mac: `--quick` 1-5 min (up to ~10),
+`--dev` 3-10 min, full 5-15 min. Do not kill while stderr still prints
+`freedisk: phase` / `still walking`. Prefer `--quick` first.
+
 No overlay is required. Optional:
 
 ```text

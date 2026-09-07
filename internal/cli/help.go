@@ -19,6 +19,15 @@ Modes (--quick is volume+known+home depth-1+tmp, NOT cargo-target-only):
   freedisk scan --dev --json
   freedisk scan --mode=rust --json
 
+Expected time (developer Mac with large work trees / caches; wall clock):
+  --quick   1-5 min typical, up to ~10 min if home has a 100GB+ work dir
+  --dev     3-10 min (quick + artifacts + worktrees)
+  full      5-15 min (--dev + drill budget ~3 min + simctl/android/docker/brew)
+A quiet process is not hung: stderr prints "freedisk: phase ..." and
+"still walking ...". Do not kill while those lines appear. Small/empty
+disks finish in tens of seconds. Prefer --quick first; only run full if
+you need simulators or docker/brew.
+
 Catalog (optional extras):
   freedisk catalog add PATH --scans quick,dev
   freedisk catalog unassign PATH --from quick

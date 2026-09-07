@@ -21,6 +21,21 @@ freedisk scan --json
 freedisk why --json
 ```
 
+## How long to wait
+
+Do **not** kill a scan that is still printing `freedisk: phase …` or
+`still walking …` on stderr. JSON/markdown is on stdout only.
+
+| mode | typical (full developer Mac) | worst we budget |
+| --- | --- | --- |
+| `--quick` | 1–5 min | ~10 min if `$HOME` has a 100GB+ work dir |
+| `--dev` | 3–10 min | artifacts + worktrees on top of quick |
+| default / full | 5–15 min | drill capped at ~3 min, then simctl / Android / docker / brew |
+
+Empty or small disks finish in tens of seconds. Start with `--quick`.
+Run `--dev` when you need `node_modules` / `target` / leftover worktrees.
+Run full only for simulators or `docker system df` / `brew autoremove`.
+
 ## Modes
 
 - `--quick` — volume + known catalog paths + **home/Library depth-1** + **tmp children** (not cargo-target-only). Named hotspots (kache, Docker.raw, uv, Playwright) are listed even when they sit under a larger parent. `~/work*` is globbed so `~/work_cip` shows up. Catches `/private/tmp/kensi-*` and other fat `/tmp` dirs.

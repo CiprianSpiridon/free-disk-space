@@ -20,12 +20,17 @@ const scanLong = `scan [--quick|--dev|--mode=NAME] [--json] [--quiet]
 
 Modes:
   quick  volume + known catalog paths (named children, not parent blobs) + home/Library depth-1 + tmp children
+         Typical 1-5 min; up to ~10 min if $HOME has a 100GB+ work dir.
   dev    leftover worktrees + project artifacts + catalog paths tagged dev
+         Typical 3-10 min.
   full   all enabled phases (default)
+         Typical 5-15 min. Drill is capped at ~3 min and never aborts the scan.
 
-Progress goes to stderr so JSON/markdown stdout stays usable. --quiet silences it.
+Agents: do not kill a scan that is still printing "freedisk: phase" or
+"still walking" on stderr. Prefer --quick first. Progress is stderr-only
+so JSON/markdown stdout stays usable. --quiet silences progress.
 Markdown tables list id, full path, last used, and a reclaim command
-(catalog command or rm -rf PATH). Drill is time-budgeted and never aborts the scan.
+(catalog command or rm -rf PATH).
 
 scan never deletes. catalog add --scans and scans disable change what runs.
 `

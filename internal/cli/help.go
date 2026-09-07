@@ -28,11 +28,15 @@ A quiet process is not hung: stderr prints "freedisk: phase ..." and
 disks finish in tens of seconds. Prefer --quick first; only run full if
 you need simulators or docker/brew.
 
-Catalog (optional extras):
-  freedisk catalog add PATH --scans quick,dev
+Catalog overlay (this Mac; not delete). Bundled YAML is generic. After a
+scan, add paths the user cares about that were missing, or drop paths they
+do not use. Overlay: ~/.config/freedisk/catalog.yaml (see catalog path).
+  freedisk catalog add PATH --scans quick,dev --risk ask --category user
+  freedisk catalog add '/Users/you/work_*' --glob --scans dev
   freedisk catalog unassign PATH --from quick
   freedisk catalog disable PATH
-  freedisk catalog add '/tmp/proj-*' --glob --scans dev
+  freedisk catalog list [--json]
+Never edit the bundled catalog. Re-scan after overlay changes.
 
 Scan types:
   freedisk scans list

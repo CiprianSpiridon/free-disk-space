@@ -42,12 +42,32 @@ Run full only for simulators or `docker system df` / `brew autoremove`.
 - `--dev` — leftover worktrees + project artifacts (`node_modules`, `target`, `.next`, venvs) + catalog paths tagged `dev`.
 - default / `--mode=full` — all enabled phases.
 
-No overlay is required. Optional:
+No overlay is required for a first scan. The bundled catalog is generic.
+**This Mac** can differ: extra work roots, a fat cache the YAML never heard
+of, or a toolchain the user does not have. After a scan, you **may** change
+the per-user overlay (`freedisk catalog path` → `~/.config/freedisk/catalog.yaml`).
+Never edit the bundled `macos-hotspots.yaml`. Overlay is not delete.
+
+When to **add** (user named a path, or home depth-1 / Ask-first showed a
+large dir that should be sized every scan):
 
 ```bash
-freedisk catalog add PATH --scans quick,dev
-freedisk scans disable artifacts
+freedisk catalog add PATH --scans quick,dev --risk ask --category user
+freedisk catalog add '/Users/you/work_*' --glob --scans dev
 ```
+
+When to **stop scanning** a path on this machine (user does not use it, or
+it is too expensive / not theirs):
+
+```bash
+freedisk catalog unassign PATH --from quick     # drop from one mode
+freedisk catalog disable PATH                   # skip entirely
+freedisk scans disable artifacts                # skip a whole phase
+```
+
+`catalog list [--json]` shows the merged view. Re-scan after overlay changes.
+`CanCatalog` refuses `/`, `$HOME`, `/System`, tmp roots, etc. — same class
+as delete denials.
 
 ## Report rules
 

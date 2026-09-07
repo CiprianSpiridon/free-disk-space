@@ -188,6 +188,7 @@ freedisk why --json
 | Start with `--quick`. Run `--dev` for artifacts/worktrees; full for simulators. | Invent a path from a truncated id. Use `.path`. |
 | Print reclaim commands from the report. | Run `delete` unless the human named those exact ids. |
 | Honor the time budgets above. | Call `delete --all` (it does not exist). Non-TTY delete without `--yes` fails. |
+| After a scan, `catalog add` / `unassign` / `disable` for **this Mac** when the user names a missing path or a fat dir that should (not) be sized every run. | Edit the bundled YAML. Overlay is not delete. |
 
 Exit codes: `0` report, `2` usage, `3` unknown id.
 

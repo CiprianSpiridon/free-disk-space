@@ -74,6 +74,9 @@ func runTmp(ctx *Context) error {
 				days = int(time.Since(info.ModTime()).Hours() / 24)
 			}
 			why := "tmp child"
+			if last != "" {
+				why = "tmp child, last used " + last
+			}
 			if days >= idle {
 				why = "untouched " + last + " in tmp"
 			}

@@ -65,6 +65,9 @@ func entryFinding(e catalog.Entry, path string, sz size.Result) findings.Finding
 	if e.Reclaim != "" {
 		f.Reclaim = &findings.Reclaim{Cmd: e.Reclaim}
 	}
+	if fi, err := os.Lstat(path); err == nil {
+		f.LastUsed = fi.ModTime().UTC().Format("2006-01-02")
+	}
 	return f
 }
 

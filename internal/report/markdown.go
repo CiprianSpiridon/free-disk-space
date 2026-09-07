@@ -33,6 +33,17 @@ func idleDays(lastUsed string) int {
 	return d
 }
 
+func displayLast(s string) string {
+	if s == "" {
+		return "—"
+	}
+	d := idleDays(s)
+	if d <= 0 {
+		return s
+	}
+	return fmt.Sprintf("%s (%dd)", s, d)
+}
+
 func humanBytes(n int64) string {
 	const k = 1024
 	if n < k {
@@ -93,7 +104,7 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 		fmt.Fprintf(w, "- Note: df / disagrees (sealed snapshot)\n")
 	}
 	fmt.Fprintf(w, "\n## Reclaimable (high confidence)\n\n")
-	fmt.Fprintf(w, "| bucket | size | risk | command |\n| --- | --- | --- | --- |\n")
+	fmt.Fprintf(w, "| bucket | size | last used | risk | command |\n| --- | --- | --- | --- | --- |\n")
 	for _, f := range r.Findings {
 		if !highConfidence(f, opt) {
 			continue
@@ -102,10 +113,10 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 		if f.Reclaim != nil {
 			cmd = f.Reclaim.Cmd
 		}
-		fmt.Fprintf(w, "| %s | %s | %s | `%s` |\n", f.ID, humanBytes(f.Bytes), f.Risk, cmd)
+		fmt.Fprintf(w, "| %s | %s | %s | %s | `%s` |\n", f.ID, humanBytes(f.Bytes), displayLast(f.LastUsed), f.Risk, cmd)
 	}
 	fmt.Fprintf(w, "\n## Ask first\n\n")
-	fmt.Fprintf(w, "| bucket | size | why |\n| --- | --- | --- |\n")
+	fmt.Fprintf(w, "| bucket | size | last used | why |\n| --- | --- | --- | --- |\n")
 	for _, f := range r.Findings {
 		if f.Risk == findings.RiskKeep || f.Risk == findings.RiskNever {
 			continue
@@ -113,7 +124,7 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 		if highConfidence(f, opt) {
 			continue
 		}
-		fmt.Fprintf(w, "| %s | %s | %s |\n", f.ID, humanBytes(f.Bytes), f.Why)
+		fmt.Fprintf(w, "| %s | %s | %s | %s |\n", f.ID, humanBytes(f.Bytes), displayLast(f.LastUsed), f.Why)
 	}
 	fmt.Fprintf(w, "\n## Keep / not reclaim\n")
 	for _, f := range r.Findings {

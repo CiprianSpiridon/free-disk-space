@@ -54,6 +54,12 @@ func TestMarkdownKeepVsIdleRebuildableVsAskTmp(t *testing.T) {
 	if !strings.Contains(reclaim, "kensi") {
 		t.Fatal("huge /private/tmp/kensi-* must be high-confidence even if recent")
 	}
+	if !strings.Contains(s, "last used") {
+		t.Fatal("tables must show last used")
+	}
+	if !strings.Contains(reclaim, old) && !strings.Contains(reclaim, "d)") {
+		t.Fatal("reclaimable rows need a date")
+	}
 	if !strings.Contains(s, "40") && !strings.Contains(s, "B") {
 		t.Fatal("volume missing", s)
 	}

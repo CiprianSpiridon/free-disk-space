@@ -1,0 +1,48 @@
+{
+  "name": "freedisk-cli",
+  "version": "0.1.0",
+  "description": "macOS disk-audit CLI. Scan never deletes; only freedisk delete <id> removes files.",
+  "license": "MIT",
+  "private": false,
+  "os": [
+    "darwin"
+  ],
+  "cpu": [
+    "x64",
+    "arm64"
+  ],
+  "engines": {
+    "node": ">=18"
+  },
+  "bin": {
+    "freedisk": "bin/freedisk"
+  },
+  "scripts": {
+    "postinstall": "node scripts/install.js",
+    "test": "node --test scripts/install.test.js"
+  },
+  "files": [
+    "bin/freedisk",
+    "scripts/install.js"
+  ],
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/CiprianSpiridon/free-disk-space.git",
+    "directory": "npm"
+  },
+  "homepage": "https://github.com/CiprianSpiridon/free-disk-space#readme",
+  "bugs": {
+    "url": "https://github.com/CiprianSpiridon/free-disk-space/issues"
+  },
+  "keywords": [
+    "macos",
+    "disk",
+    "apfs",
+    "cli",
+    "agent"
+  ],
+  "author": "Ciprian Spiridon",
+  "publishConfig": {
+    "access": "public"
+  }
+}

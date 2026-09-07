@@ -1,0 +1,32 @@
+#!/usr/bin/env node
+"use strict";
+
+// npm links prefix/bin/freedisk → this file. __dirname is the real
+// package bin/ dir even when $0 is the symlink.
+const { spawn } = require("node:child_process");
+const fs = require("node:fs");
+const path = require("node:path");
+
+const bin = path.join(__dirname, "..", "vendor", "freedisk");
+if (!fs.existsSync(bin)) {
+  console.error("freedisk: native binary missing (postinstall did not download it).");
+  console.error(
+    "No GitHub release for this version. Use: go install github.com/CiprianSpiridon/free-disk-space/cmd/freedisk@latest",
+  );
+  process.exit(1);
+}
+
+const child = spawn(bin, process.argv.slice(2), { stdio: "inherit" });
+for (const signal of ["SIGINT", "SIGTERM"]) {
+  process.on(signal, () => {
+    if (!child.killed) child.kill(signal);
+  });
+}
+child.on("error", (err) => {
+  console.error(`freedisk: ${err.message}`);
+  process.exit(1);
+});
+child.on("exit", (code, signal) => {
+  if (signal) process.exit(1);
+  process.exit(code ?? 1);
+});

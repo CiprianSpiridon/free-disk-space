@@ -1,0 +1,5 @@
+# Publish root is this directory. Keep the tarball to the wrapper only.
+vendor/
+node_modules/
+*.tgz
+scripts/install.test.js

@@ -25,3 +25,7 @@ vendor/
 
 # make build output
 /bin/
+
+# npm wrapper (publish from npm/)
+npm/node_modules/
+npm/*.tgz

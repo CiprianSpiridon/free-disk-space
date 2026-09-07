@@ -10,9 +10,9 @@ import (
 )
 
 var (
-	reInUse   = regexp.MustCompile(`Capacity In Use By Volumes:\s+(\d+)\s*B`)
-	reFree    = regexp.MustCompile(`Capacity Not Allocated:\s+(\d+)\s*B`)
-	reCeiling = regexp.MustCompile(`Size \(Capacity Ceiling\):\s+(\d+)\s*B`)
+	reInUse        = regexp.MustCompile(`Capacity In Use By Volumes:\s+(\d+)\s*B`)
+	reFree         = regexp.MustCompile(`Capacity Not Allocated:\s+(\d+)\s*B`)
+	reCeiling      = regexp.MustCompile(`Size \(Capacity Ceiling\):\s+(\d+)\s*B`)
 	reInUseLoose   = regexp.MustCompile(`Capacity In Use By Volumes:\s+([0-9.]+)\s*([KMGT]i?B)`)
 	reFreeLoose    = regexp.MustCompile(`Capacity Not Allocated:\s+([0-9.]+)\s*([KMGT]i?B)`)
 	reCeilingLoose = regexp.MustCompile(`(?:Size \(Capacity Ceiling\)|Capacity Ceiling):\s+([0-9.]+)\s*([KMGT]i?B)`)

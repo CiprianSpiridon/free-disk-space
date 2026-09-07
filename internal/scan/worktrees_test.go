@@ -2,6 +2,7 @@ package scan
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -116,6 +117,54 @@ func TestWorktreesAgesChildNotParent(t *testing.T) {
 		if f.Risk == findings.RiskLeftoverWorktree {
 			t.Fatalf("fresh subagent should not make leftover: %+v", f)
 		}
+	}
+}
+
+func TestGitWorktreePorcelainSkipsMain(t *testing.T) {
+	home := t.TempDir()
+	repo := filepath.Join(home, "work", "repo")
+	extra := filepath.Join(home, "work", "linked")
+	if err := os.MkdirAll(repo, 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cmd := exec.Command("git", "init")
+	cmd.Dir = repo
+	if out, err := cmd.CombinedOutput(); err != nil {
+		t.Skipf("git: %s %v", out, err)
+	}
+	old := GitWorktreeList
+	GitWorktreeList = func(string) ([]byte, error) {
+		return []byte("worktree " + repo + "\nHEAD abc\n\nworktree " + extra + "\nHEAD def\n"), nil
+	}
+	defer func() { GitWorktreeList = old }()
+	_ = os.MkdirAll(filepath.Join(repo, ".git", "worktrees", "linked"), 0o755)
+	cat := &catalog.Catalog{
+		WorkRoots:       []catalog.Entry{{Path: filepath.Join(home, "work")}},
+		WorktreeMarkers: []catalog.WorktreeMarker{{PathSuffix: "/.git/worktrees", Kind: "git-metadata"}},
+		Thresholds:      catalog.Thresholds{MaxWalkDepth: 8, WorktreeIdleDays: 14, WorktreeInflightHours: 24},
+	}
+	rep := findings.NewReport(home)
+	ctx := &Context{Mode: "dev", Catalog: cat, Home: home, Report: &rep}
+	if err := runWorktrees(ctx); err != nil {
+		t.Fatal(err)
+	}
+	var sawExtra, sawMain, sawMeta bool
+	for _, f := range rep.Findings {
+		if f.Path == extra {
+			sawExtra = true
+		}
+		if f.Path == repo {
+			sawMain = true
+		}
+		if strings.HasSuffix(f.Path, ".git/worktrees") {
+			sawMeta = true
+		}
+	}
+	if !sawExtra {
+		t.Fatalf("missing extra worktree: %+v", rep.Findings)
+	}
+	if sawMain || sawMeta {
+		t.Fatalf("should skip main repo and metadata dir: %+v", rep.Findings)
 	}
 }
 

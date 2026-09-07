@@ -35,11 +35,7 @@ func runCatalog(g *Global, args []string) error {
 		fmt.Fprintln(g.Stdout, path)
 		return nil
 	case "list":
-		bundledPath, _, err := catalog.ResolveCatalogPath(g.Catalog)
-		if err != nil {
-			return err
-		}
-		b, err := catalog.Load(bundledPath)
+		b, _, err := catalog.LoadDefault(g.Catalog)
 		if err != nil {
 			return err
 		}

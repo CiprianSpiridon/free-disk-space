@@ -3,6 +3,7 @@ package scan
 import (
 	"io/fs"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"time"
@@ -11,6 +12,11 @@ import (
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
+
+// GitWorktreeList is injected in tests.
+var GitWorktreeList = func(repo string) ([]byte, error) {
+	return exec.Command("git", "-C", repo, "worktree", "list", "--porcelain").Output()
+}
 
 func init() {
 	Register(Phase{Name: "worktrees", Quick: false, Dev: true, Run: runWorktrees})
@@ -49,7 +55,13 @@ func runWorktrees(ctx *Context) error {
 	for _, root := range discoverWorkRoots(ctx.Catalog, ctx.Home) {
 		root = filepath.Clean(root)
 		_ = filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
-			if err != nil || !d.IsDir() {
+			if err != nil {
+				if os.IsPermission(err) {
+					noteUnreadable(ctx.Report, p)
+				}
+				return nil
+			}
+			if !d.IsDir() {
 				return nil
 			}
 			if d.Type()&os.ModeSymlink != 0 {
@@ -73,7 +85,11 @@ func runWorktrees(ctx *Context) error {
 			for _, m := range ctx.Catalog.WorktreeMarkers {
 				if m.PathSuffix != "" && strings.HasSuffix(slash, m.PathSuffix) {
 					found = true
-					emitWorktreeChildren(ctx, p, m.Kind, idle, inflight)
+					if m.Kind == "git-metadata" {
+						emitGitWorktrees(ctx, p, idle, inflight)
+					} else {
+						emitWorktreeChildren(ctx, p, m.Kind, idle, inflight)
+					}
 					return filepath.SkipDir
 				}
 			}
@@ -86,6 +102,32 @@ func runWorktrees(ctx *Context) error {
 		}
 	}
 	return nil
+}
+
+func emitGitWorktrees(ctx *Context, metaDir string, idleDays, inflightHours int) {
+	repo := filepath.Dir(filepath.Dir(metaDir)) // .../.git/worktrees → repo
+	b, err := GitWorktreeList(repo)
+	if err != nil {
+		emitWorktreeChildren(ctx, metaDir, "git-metadata", idleDays, inflightHours)
+		return
+	}
+	var extras []string
+	for _, line := range strings.Split(string(b), "\n") {
+		if !strings.HasPrefix(line, "worktree ") {
+			continue
+		}
+		wt := strings.TrimPrefix(line, "worktree ")
+		if wt == "" || filepath.Clean(wt) == filepath.Clean(repo) {
+			continue
+		}
+		extras = append(extras, wt)
+	}
+	if len(extras) == 0 {
+		return
+	}
+	for _, wt := range extras {
+		emitOneWorktree(ctx, wt, "git", idleDays, inflightHours, 0)
+	}
 }
 
 func emitWorktreeChildren(ctx *Context, p, kind string, idleDays, inflightHours int) {
@@ -157,6 +199,7 @@ func emitOneWorktree(ctx *Context, p, kind string, idleDays, inflightHours, coun
 		}
 	}
 	sz := size.Of(p)
+	noteUnreadable(ctx.Report, sz.Unreadable...)
 	newest := newestMtime(p)
 	risk := findings.RiskAsk
 	why := kind + " worktrees"

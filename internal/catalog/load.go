@@ -6,23 +6,24 @@ import (
 	"path/filepath"
 	"strings"
 
+	catalogdata "github.com/CiprianSpiridon/free-disk-space/catalog"
 	"gopkg.in/yaml.v3"
 )
 
 // Entry is one catalog path row.
 type Entry struct {
-	Path           string   `yaml:"path"`
-	Category       string   `yaml:"category"`
-	Risk           string   `yaml:"risk"`
-	Drill          bool     `yaml:"drill"`
-	AlwaysDrill    bool     `yaml:"always_drill"`
-	WalkArtifacts  bool     `yaml:"walk_artifacts"`
-	Glob           bool     `yaml:"glob"`
-	Sparse         bool     `yaml:"sparse"`
-	Reclaim        string   `yaml:"reclaim"`
-	Note           string   `yaml:"note"`
-	Scans          []string `yaml:"scans"`
-	GlobChildren   string   `yaml:"glob_children"`
+	Path          string   `yaml:"path"`
+	Category      string   `yaml:"category"`
+	Risk          string   `yaml:"risk"`
+	Drill         bool     `yaml:"drill"`
+	AlwaysDrill   bool     `yaml:"always_drill"`
+	WalkArtifacts bool     `yaml:"walk_artifacts"`
+	Glob          bool     `yaml:"glob"`
+	Sparse        bool     `yaml:"sparse"`
+	Reclaim       string   `yaml:"reclaim"`
+	Note          string   `yaml:"note"`
+	Scans         []string `yaml:"scans"`
+	GlobChildren  string   `yaml:"glob_children"`
 }
 
 // Artifact is a walk marker.
@@ -67,32 +68,32 @@ type Thresholds struct {
 
 // Catalog is the bundled hotspot file.
 type Catalog struct {
-	Version          int              `yaml:"version"`
-	OS               string           `yaml:"os"`
-	Home             []Entry          `yaml:"home"`
-	WorkRoots        []Entry          `yaml:"work_roots"`
-	WorkRootDiscover WorkRootDiscover `yaml:"work_root_discover"`
-	SystemWide       []Entry          `yaml:"system_wide"`
-	Tmp              []Entry          `yaml:"tmp"`
-	Library          []Entry          `yaml:"library"`
-	Xcode            []Entry          `yaml:"xcode"`
-	Android          []Entry          `yaml:"android"`
-	DockerVMs        []Entry          `yaml:"docker_vms"`
-	Node             []Entry          `yaml:"node"`
-	LanguageHomes    []Entry          `yaml:"language_homes"`
-	Python           []Entry          `yaml:"python"`
-	Rust             []Entry          `yaml:"rust"`
-	GoJavaPHRuby     []Entry          `yaml:"go_java_php_ruby"`
-	AILocal          []Entry          `yaml:"ai_local"`
-	AgentCLIs        []Entry          `yaml:"agent_clis"`
-	Editors          []Entry          `yaml:"editors"`
-	VMs              []Entry          `yaml:"vms"`
-	BrowserRuntimes  []Entry          `yaml:"browser_runtimes"`
-	Artifacts        []Artifact       `yaml:"artifacts"`
-	WorktreeMarkers  []WorktreeMarker `yaml:"worktree_markers"`
-	WalkPrune        []string         `yaml:"walk_prune"`
+	Version          int                 `yaml:"version"`
+	OS               string              `yaml:"os"`
+	Home             []Entry             `yaml:"home"`
+	WorkRoots        []Entry             `yaml:"work_roots"`
+	WorkRootDiscover WorkRootDiscover    `yaml:"work_root_discover"`
+	SystemWide       []Entry             `yaml:"system_wide"`
+	Tmp              []Entry             `yaml:"tmp"`
+	Library          []Entry             `yaml:"library"`
+	Xcode            []Entry             `yaml:"xcode"`
+	Android          []Entry             `yaml:"android"`
+	DockerVMs        []Entry             `yaml:"docker_vms"`
+	Node             []Entry             `yaml:"node"`
+	LanguageHomes    []Entry             `yaml:"language_homes"`
+	Python           []Entry             `yaml:"python"`
+	Rust             []Entry             `yaml:"rust"`
+	GoJavaPHRuby     []Entry             `yaml:"go_java_php_ruby"`
+	AILocal          []Entry             `yaml:"ai_local"`
+	AgentCLIs        []Entry             `yaml:"agent_clis"`
+	Editors          []Entry             `yaml:"editors"`
+	VMs              []Entry             `yaml:"vms"`
+	BrowserRuntimes  []Entry             `yaml:"browser_runtimes"`
+	Artifacts        []Artifact          `yaml:"artifacts"`
+	WorktreeMarkers  []WorktreeMarker    `yaml:"worktree_markers"`
+	WalkPrune        []string            `yaml:"walk_prune"`
 	Apis             map[string][]string `yaml:"apis"`
-	Thresholds       Thresholds       `yaml:"thresholds"`
+	Thresholds       Thresholds          `yaml:"thresholds"`
 	source           string
 	disableScans     []string
 	userModes        map[string]UserMode
@@ -130,19 +131,45 @@ func defaults(t *Thresholds) {
 	}
 }
 
+func parse(source string, b []byte) (*Catalog, error) {
+	var c Catalog
+	if err := yaml.Unmarshal(b, &c); err != nil {
+		return nil, fmt.Errorf("catalog parse %s: %w", source, err)
+	}
+	defaults(&c.Thresholds)
+	c.source = source
+	return &c, nil
+}
+
 // Load reads a catalog YAML file. Missing file is a hard error.
 func Load(path string) (*Catalog, error) {
 	b, err := os.ReadFile(path)
 	if err != nil {
 		return nil, fmt.Errorf("catalog not found: %s: %w", path, err)
 	}
-	var c Catalog
-	if err := yaml.Unmarshal(b, &c); err != nil {
-		return nil, fmt.Errorf("catalog parse %s: %w", path, err)
+	return parse(path, b)
+}
+
+// LoadBundled returns the catalog compiled into the binary.
+func LoadBundled() (*Catalog, error) {
+	return parse("bundled", catalogdata.YAML)
+}
+
+// LoadDefault is explicit path, FREEDISK_CATALOG, repo walk, then the embedded catalog.
+func LoadDefault(explicit string) (*Catalog, []string, error) {
+	path, tried, err := ResolveCatalogPath(explicit)
+	if err == nil && path != "" {
+		c, err := Load(path)
+		return c, tried, err
 	}
-	defaults(&c.Thresholds)
-	c.source = path
-	return &c, nil
+	c, berr := LoadBundled()
+	if berr != nil {
+		if err != nil {
+			return nil, tried, err
+		}
+		return nil, tried, berr
+	}
+	return c, append(tried, "bundled"), nil
 }
 
 // ResolveCatalogPath search order: explicit, FREEDISK_CATALOG, walk for catalog/macos-hotspots.yaml.

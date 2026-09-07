@@ -76,6 +76,8 @@ func TestSimRuntimeUnusedWhenNeverBooted(t *testing.T) {
 }
 
 func TestAndroidImagesWithZeroAVDs(t *testing.T) {
+	t.Setenv("ANDROID_SDK_ROOT", "")
+	t.Setenv("ANDROID_HOME", "")
 	home := t.TempDir()
 	img := filepath.Join(home, "sdk", "system-images")
 	_ = os.MkdirAll(img, 0o755)
@@ -111,6 +113,30 @@ func TestAndroidImagesWithZeroAVDs(t *testing.T) {
 	}
 	if !ok {
 		t.Fatal(rep.NotPresent)
+	}
+}
+
+func TestAndroidSDKRootEnv(t *testing.T) {
+	home := t.TempDir()
+	sdk := filepath.Join(home, "sdk")
+	img := filepath.Join(sdk, "system-images")
+	_ = os.MkdirAll(img, 0o755)
+	_ = os.WriteFile(filepath.Join(img, "x"), []byte("img"), 0o644)
+	t.Setenv("ANDROID_SDK_ROOT", sdk)
+	t.Setenv("ANDROID_HOME", "")
+	rep := findings.NewReport(home)
+	ctx := &Context{Catalog: &catalog.Catalog{}, Home: home, Report: &rep}
+	if err := runAndroidSim(ctx); err != nil {
+		t.Fatal(err)
+	}
+	saw := false
+	for _, f := range rep.Findings {
+		if f.Path == img {
+			saw = true
+		}
+	}
+	if !saw {
+		t.Fatalf("expected ANDROID_SDK_ROOT image: %+v", rep.Findings)
 	}
 }
 

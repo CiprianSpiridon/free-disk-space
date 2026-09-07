@@ -17,9 +17,30 @@ func init() {
 	Register(Phase{Name: "artifacts", Quick: false, Dev: true, Run: runArtifacts})
 }
 
-func gitTracked(repo, path string) bool {
-	cmd := exec.Command("git", "-C", repo, "ls-files", "--error-unmatch", "--", path)
-	return cmd.Run() == nil
+func gitTracked(repo, path string, cache map[string]map[string]bool) bool {
+	set, ok := cache[repo]
+	if !ok {
+		set = gitLsFiles(repo)
+		cache[repo] = set
+	}
+	slash := filepath.ToSlash(path)
+	return set[path] || set[slash]
+}
+
+func gitLsFiles(repo string) map[string]bool {
+	out := map[string]bool{}
+	cmd := exec.Command("git", "-C", repo, "ls-files", "-z")
+	b, err := cmd.Output()
+	if err != nil {
+		return out
+	}
+	for _, p := range strings.Split(string(b), "\x00") {
+		if p != "" {
+			out[p] = true
+			out[filepath.FromSlash(p)] = true
+		}
+	}
+	return out
 }
 
 func findGitRoot(start string) string {
@@ -63,6 +84,14 @@ func artifactMatch(name string, arts []catalog.Artifact) (catalog.Artifact, bool
 }
 
 func discoverWorkRoots(cat *catalog.Catalog, home string) []string {
+	return collectWorkRoots(cat, home, false)
+}
+
+func artifactWalkRoots(cat *catalog.Catalog, home string) []string {
+	return collectWorkRoots(cat, home, true)
+}
+
+func collectWorkRoots(cat *catalog.Catalog, home string, artifactsOnly bool) []string {
 	var roots []string
 	listed := map[string]struct{}{}
 	for _, e := range cat.WorkRoots {
@@ -71,8 +100,11 @@ func discoverWorkRoots(cat *catalog.Catalog, home string) []string {
 			continue
 		}
 		if st, err := os.Stat(p); err == nil && st.IsDir() {
-			roots = append(roots, p)
 			listed[filepath.Base(p)] = struct{}{}
+			if artifactsOnly && !e.WalkArtifacts {
+				continue
+			}
+			roots = append(roots, p)
 		}
 	}
 	d := cat.WorkRootDiscover
@@ -150,11 +182,15 @@ func runArtifacts(ctx *Context) error {
 			prune[a.Name] = struct{}{}
 		}
 	}
-	roots := discoverWorkRoots(ctx.Catalog, ctx.Home)
+	roots := artifactWalkRoots(ctx.Catalog, ctx.Home)
 	seen := map[string]struct{}{}
+	tracked := map[string]map[string]bool{}
 	for _, root := range roots {
 		filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 			if err != nil {
+				if os.IsPermission(err) {
+					noteUnreadable(ctx.Report, p)
+				}
 				return nil
 			}
 			rel, _ := filepath.Rel(root, p)
@@ -177,13 +213,13 @@ func runArtifacts(ctx *Context) error {
 			}
 			if d.IsDir() && name == "vendor" {
 				if isComposerVendor(p) {
-					emitArtifact(ctx, p, "composer-vendor", findings.RiskRebuildable, idle, seen)
+					emitArtifact(ctx, p, "composer-vendor", findings.RiskRebuildable, idle, seen, tracked)
 					return filepath.SkipDir
 				}
 				return nil
 			}
 			if d.IsDir() && name == "target" && hasCargoToml(filepath.Dir(p)) {
-				emitArtifact(ctx, p, "rust-target", findings.RiskRebuildable, idle, seen)
+				emitArtifact(ctx, p, "rust-target", findings.RiskRebuildable, idle, seen, tracked)
 				return filepath.SkipDir
 			}
 			if a, ok := artifactMatch(name, ctx.Catalog.Artifacts); ok {
@@ -196,17 +232,17 @@ func runArtifacts(ctx *Context) error {
 					}
 				}
 				if d.IsDir() {
-					emitArtifact(ctx, p, a.Ecosystem, findings.Risk(a.Risk), idle, seen)
+					emitArtifact(ctx, p, a.Ecosystem, findings.Risk(a.Risk), idle, seen, tracked)
 					if _, skip := prune[name]; skip {
 						return filepath.SkipDir
 					}
 				} else if a.File {
-					emitArtifact(ctx, p, a.Ecosystem, findings.Risk(a.Risk), idle, seen)
+					emitArtifact(ctx, p, a.Ecosystem, findings.Risk(a.Risk), idle, seen, tracked)
 				}
 			}
 			if d.IsDir() {
 				if _, err := os.Stat(filepath.Join(p, "pyvenv.cfg")); err == nil {
-					emitArtifact(ctx, p, "python-venv", findings.RiskRebuildable, idle, seen)
+					emitArtifact(ctx, p, "python-venv", findings.RiskRebuildable, idle, seen, tracked)
 					return filepath.SkipDir
 				}
 			}
@@ -216,17 +252,18 @@ func runArtifacts(ctx *Context) error {
 	return nil
 }
 
-func emitArtifact(ctx *Context, p, cat string, risk findings.Risk, idleDays int, seen map[string]struct{}) {
+func emitArtifact(ctx *Context, p, cat string, risk findings.Risk, idleDays int, seen map[string]struct{}, tracked map[string]map[string]bool) {
 	if _, ok := seen[p]; ok {
 		return
 	}
 	if repo := findGitRoot(filepath.Dir(p)); repo != "" {
 		rel, err := filepath.Rel(repo, p)
-		if err == nil && gitTracked(repo, rel) {
+		if err == nil && gitTracked(repo, rel, tracked) {
 			risk = findings.RiskKeep
 		}
 	}
 	sz := size.Of(p)
+	noteUnreadable(ctx.Report, sz.Unreadable...)
 	if sz.Missing {
 		return
 	}

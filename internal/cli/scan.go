@@ -54,13 +54,9 @@ func runScan(g *Global, args []string) error {
 	if dev {
 		mode = "dev"
 	}
-	catPath, tried, err := catalog.ResolveCatalogPath(g.Catalog)
+	bundled, tried, err := catalog.LoadDefault(g.Catalog)
 	if err != nil {
 		return fmt.Errorf("catalog: %v (tried %s)", err, strings.Join(tried, ", "))
-	}
-	bundled, err := catalog.Load(catPath)
-	if err != nil {
-		return err
 	}
 	home, _ := os.UserHomeDir()
 	ov, err := catalog.LoadOverlay(catalog.OverlayPath(g.Config))

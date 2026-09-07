@@ -5,15 +5,17 @@ import (
 	"io/fs"
 	"os"
 	"path/filepath"
+	"strings"
 	"syscall"
 )
 
 // Result is allocated vs apparent size for one path.
 type Result struct {
-	Allocated int64
-	Apparent  int64
-	Missing   bool
-	Err       error
+	Allocated  int64
+	Apparent   int64
+	Missing    bool
+	Err        error
+	Unreadable []string
 }
 
 // Of returns allocated (st_blocks*512) and apparent (st_size) for path.
@@ -37,10 +39,35 @@ func Of(path string) Result {
 	return dirSize(path)
 }
 
+func skipWalk(p string) bool {
+	if strings.HasPrefix(p, "/usr/local") {
+		return false
+	}
+	for _, pre := range []string{"/System", "/usr", "/bin", "/sbin", "/private/var/vm", "/dev", "/net"} {
+		if p == pre || strings.HasPrefix(p, pre+"/") {
+			return true
+		}
+	}
+	return false
+}
+
 func dirSize(root string) Result {
 	var alloc, app int64
+	var unread []string
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
 		if err != nil {
+			if os.IsPermission(err) || errors.Is(err, fs.ErrPermission) {
+				unread = append(unread, p)
+				if d != nil && d.IsDir() {
+					return fs.SkipDir
+				}
+			}
+			return nil
+		}
+		if skipWalk(p) {
+			if d.IsDir() {
+				return fs.SkipDir
+			}
 			return nil
 		}
 		if d.Type()&os.ModeSymlink != 0 {
@@ -48,6 +75,9 @@ func dirSize(root string) Result {
 		}
 		info, err := d.Info()
 		if err != nil {
+			if os.IsPermission(err) {
+				unread = append(unread, p)
+			}
 			return nil
 		}
 		a, ap := fromInfo(info)
@@ -55,7 +85,7 @@ func dirSize(root string) Result {
 		app += ap
 		return nil
 	})
-	return Result{Allocated: alloc, Apparent: app, Err: err}
+	return Result{Allocated: alloc, Apparent: app, Err: err, Unreadable: unread}
 }
 
 // OfFileInfo sizes a single inode (no walk).

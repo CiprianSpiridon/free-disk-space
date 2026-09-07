@@ -101,6 +101,20 @@ func applyList(list []Entry, workRoot bool, home string, disabled map[string]str
 	return next
 }
 
+func mergeAddAny(c *Catalog, add Entry) bool {
+	groups := []*[]Entry{
+		&c.Home, &c.WorkRoots, &c.SystemWide, &c.Tmp, &c.Library, &c.Xcode, &c.Android,
+		&c.DockerVMs, &c.Node, &c.LanguageHomes, &c.Python, &c.Rust, &c.GoJavaPHRuby,
+		&c.AILocal, &c.AgentCLIs, &c.Editors, &c.VMs, &c.BrowserRuntimes,
+	}
+	for _, g := range groups {
+		if mergeAdd(g, add) {
+			return true
+		}
+	}
+	return false
+}
+
 func mergeAdd(list *[]Entry, add Entry) bool {
 	for i := range *list {
 		if (*list)[i].Path == add.Path {
@@ -156,7 +170,7 @@ func Merge(bundled *Catalog, ov *Overlay, home string) *Catalog {
 	for _, add := range ov.Add {
 		add.Path = expandKey(add.Path, home)
 		add.Scans = defaultScans(add, false)
-		if mergeAdd(&out.Home, add) || mergeAdd(&out.Node, add) || mergeAdd(&out.Tmp, add) || mergeAdd(&out.WorkRoots, add) {
+		if mergeAddAny(&out, add) {
 			continue
 		}
 		out.Home = append(out.Home, add)
@@ -229,5 +243,5 @@ func SaveOverlay(path string, ov *Overlay) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(path, b, 0o644)
+	return os.WriteFile(path, b, 0o600)
 }

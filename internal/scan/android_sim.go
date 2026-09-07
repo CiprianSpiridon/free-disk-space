@@ -24,6 +24,16 @@ func runAndroidSim(ctx *Context) error {
 			avds = append(avds, e)
 		}
 	}
+	if sdk := androidSDKRoot(); sdk != "" {
+		img := filepath.Join(sdk, "system-images")
+		if st, err := os.Stat(img); err == nil && st.IsDir() {
+			images = append(images, catalog.Entry{Path: img, Category: "android-system-images", Risk: "ask"})
+		}
+		avd := filepath.Join(sdk, "avd")
+		if st, err := os.Stat(avd); err == nil && st.IsDir() {
+			avds = append(avds, catalog.Entry{Path: avd, Category: "android-avds", Risk: "ask"})
+		}
+	}
 	avdCount := 0
 	avdReadOK := true
 	for _, e := range avds {
@@ -46,6 +56,7 @@ func runAndroidSim(ctx *Context) error {
 	for _, e := range images {
 		p := catalog.ExpandPath(e.Path, ctx.Home)
 		sz := size.Of(p)
+		noteUnreadable(ctx.Report, sz.Unreadable...)
 		if sz.Missing {
 			continue
 		}
@@ -60,4 +71,13 @@ func runAndroidSim(ctx *Context) error {
 		})
 	}
 	return nil
+}
+
+func androidSDKRoot() string {
+	for _, k := range []string{"ANDROID_SDK_ROOT", "ANDROID_HOME"} {
+		if v := os.Getenv(k); v != "" {
+			return v
+		}
+	}
+	return ""
 }

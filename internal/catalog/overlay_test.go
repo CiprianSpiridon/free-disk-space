@@ -78,6 +78,33 @@ func paths(ents []Entry) []string {
 	return s
 }
 
+func TestOverlayAddMergesLibraryNotDuplicateHome(t *testing.T) {
+	home := "/Users/test"
+	lib := ExpandPath("~/Library/Caches", home)
+	bundled := &Catalog{
+		Library: []Entry{{Path: "~/Library/Caches", Category: "caches", Risk: "ask"}},
+	}
+	ov := &Overlay{
+		Add: []Entry{{Path: "~/Library/Caches", Scans: []string{"dev"}, Risk: "ask", Category: "caches"}},
+	}
+	m := Merge(bundled, ov, home)
+	n := 0
+	for _, e := range m.AllEntries() {
+		if e.Path == lib {
+			n++
+		}
+	}
+	if n != 1 {
+		t.Fatalf("want 1 library entry, got %d", n)
+	}
+	if !containsPath(m.Library, lib) {
+		t.Fatal("should stay in Library")
+	}
+	if containsPath(m.Home, lib) {
+		t.Fatal("should not duplicate into Home")
+	}
+}
+
 func TestLoadOverlayMissing(t *testing.T) {
 	ov, err := LoadOverlay(filepath.Join(t.TempDir(), "nope.yaml"))
 	if err != nil || ov == nil {

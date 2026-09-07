@@ -70,8 +70,8 @@ func TestArtifactsVendorComposerVsRust(t *testing.T) {
 	_ = os.MkdirAll(filepath.Join(rustv, "target"), 0o755)
 	_ = os.WriteFile(filepath.Join(rustv, "Cargo.toml"), []byte("[package]"), 0o644)
 	cat := &catalog.Catalog{
-		WorkRoots: []catalog.Entry{{Path: filepath.Join(home, "work")}},
-		Artifacts: []catalog.Artifact{{Name: "vendor", Ecosystem: "composer-or-go", Risk: "rebuildable"}, {Name: "target", Ecosystem: "rust", Risk: "rebuildable"}},
+		WorkRoots:  []catalog.Entry{{Path: filepath.Join(home, "work"), WalkArtifacts: true}},
+		Artifacts:  []catalog.Artifact{{Name: "vendor", Ecosystem: "composer-or-go", Risk: "rebuildable"}, {Name: "target", Ecosystem: "rust", Risk: "rebuildable"}},
 		Thresholds: catalog.Thresholds{MaxWalkDepth: 8},
 	}
 	rep := findings.NewReport(home)
@@ -114,7 +114,7 @@ func TestArtifactsGitTrackedAndEnv(t *testing.T) {
 	_ = exec.Command("git", "-C", repo, "-c", "user.email=t@t", "-c", "user.name=t", "commit", "-m", "x").Run()
 	_ = os.Mkdir(filepath.Join(repo, "env"), 0o755)
 	cat := &catalog.Catalog{
-		WorkRoots: []catalog.Entry{{Path: filepath.Join(home, "work")}},
+		WorkRoots: []catalog.Entry{{Path: filepath.Join(home, "work"), WalkArtifacts: true}},
 		Artifacts: []catalog.Artifact{
 			{Name: "dist", Ecosystem: "js-build", Risk: "rebuildable"},
 			{Name: "env", Ecosystem: "python", Risk: "rebuildable"},
@@ -159,5 +159,24 @@ func TestDiscoverTwoGitRepos(t *testing.T) {
 	}
 	if !ok {
 		t.Fatal("discover walk missed node_modules")
+	}
+}
+
+func TestArtifactsSkipsWorkRootWithoutWalkFlag(t *testing.T) {
+	home := t.TempDir()
+	goRoot := filepath.Join(home, "go", "pkg")
+	_ = os.MkdirAll(filepath.Join(goRoot, "node_modules"), 0o755)
+	cat := &catalog.Catalog{
+		WorkRoots:  []catalog.Entry{{Path: filepath.Join(home, "go"), WalkArtifacts: false}},
+		Artifacts:  []catalog.Artifact{{Name: "node_modules", Ecosystem: "node", Risk: "rebuildable"}},
+		Thresholds: catalog.Thresholds{MaxWalkDepth: 8},
+	}
+	rep := findings.NewReport(home)
+	ctx := &Context{Catalog: cat, Home: home, Report: &rep}
+	_ = runArtifacts(ctx)
+	for _, f := range rep.Findings {
+		if filepath.Base(f.Path) == "node_modules" {
+			t.Fatal("walked work root with walk_artifacts false")
+		}
 	}
 }

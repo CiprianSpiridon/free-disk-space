@@ -12,6 +12,17 @@ import (
 
 const KnownPhaseName = "known"
 
+func noteUnreadable(rep *findings.Report, paths ...string) {
+	if rep == nil {
+		return
+	}
+	for _, p := range paths {
+		if p != "" {
+			rep.Unreadable = append(rep.Unreadable, p)
+		}
+	}
+}
+
 func seenKey(p string) string {
 	if rp, err := filepath.EvalSymlinks(p); err == nil {
 		return rp
@@ -37,12 +48,12 @@ func entryFinding(e catalog.Entry, path string, sz size.Result) findings.Finding
 		risk = findings.RiskAsk
 	}
 	f := findings.Finding{
-		ID:            findings.IDSlug(e.Category, path),
-		Path:          path,
-		Bytes:         sz.Allocated,
-		Category:      e.Category,
-		Risk:          risk,
-		Why:           e.Note,
+		ID:       findings.IDSlug(e.Category, path),
+		Path:     path,
+		Bytes:    sz.Allocated,
+		Category: e.Category,
+		Risk:     risk,
+		Why:      e.Note,
 	}
 	if e.Sparse && sz.Apparent > sz.Allocated {
 		f.BytesApparent = sz.Apparent
@@ -83,12 +94,13 @@ func Known(cat *catalog.Catalog, mode, home string, rep *findings.Report) {
 			} else {
 				sz = size.Of(p)
 			}
+			noteUnreadable(rep, sz.Unreadable...)
 			if sz.Missing {
 				continue
 			}
 			if sz.Err != nil {
 				if os.IsPermission(sz.Err) {
-					rep.Unreadable = append(rep.Unreadable, p)
+					noteUnreadable(rep, p)
 				}
 				continue
 			}

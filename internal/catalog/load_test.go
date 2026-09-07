@@ -52,6 +52,25 @@ func TestLoadBundledAndroidAndTmpAndDiscover(t *testing.T) {
 	}
 }
 
+func TestLoadBundled(t *testing.T) {
+	c, err := LoadBundled()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if !c.WorkRootDiscover.Enabled {
+		t.Fatal("bundled discover")
+	}
+	sawTmp := false
+	for _, e := range c.AllEntries() {
+		if e.Path == "/tmp" {
+			sawTmp = true
+		}
+	}
+	if !sawTmp {
+		t.Fatal("bundled missing /tmp")
+	}
+}
+
 func TestLoadMissingFileErrorsWithPath(t *testing.T) {
 	p := filepath.Join(t.TempDir(), "nope.yaml")
 	_, err := Load(p)

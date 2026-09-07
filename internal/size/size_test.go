@@ -33,6 +33,22 @@ func TestMissingPath(t *testing.T) {
 	}
 }
 
+func TestUnreadablePermission(t *testing.T) {
+	dir := t.TempDir()
+	denied := filepath.Join(dir, "secret")
+	if err := os.Mkdir(denied, 0o000); err != nil {
+		t.Fatal(err)
+	}
+	defer os.Chmod(denied, 0o755)
+	r := Of(dir)
+	if len(r.Unreadable) == 0 && os.Getuid() == 0 {
+		t.Skip("root bypasses chmod 000")
+	}
+	if os.Getuid() != 0 && len(r.Unreadable) == 0 {
+		t.Fatalf("expected unreadable, got %+v", r)
+	}
+}
+
 func TestNoOSexecImport(t *testing.T) {
 	src, err := os.ReadFile("size.go")
 	if err != nil {

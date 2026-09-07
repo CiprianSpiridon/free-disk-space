@@ -47,6 +47,7 @@ func runTmp(ctx *Context) error {
 				continue
 			}
 			sz := size.Of(p)
+			noteUnreadable(ctx.Report, sz.Unreadable...)
 			if sz.Missing || sz.Allocated < min {
 				continue
 			}

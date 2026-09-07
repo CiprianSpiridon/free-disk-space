@@ -1,5 +1,5 @@
 {
-  "name": "freedisk-cli",
+  "name": "free-disk-space",
   "version": "0.1.0",
   "description": "macOS disk-audit CLI. Scan never deletes; only freedisk delete <id> removes files.",
   "license": "MIT",

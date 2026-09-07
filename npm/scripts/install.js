@@ -54,12 +54,12 @@ function sha256(buf) {
 
 async function httpGet(url, fetchImpl, asText) {
   if (typeof fetchImpl !== "function") {
-    throw new Error("freedisk-cli requires Node.js 18+ (global fetch).");
+    throw new Error("freedisk requires Node.js 18+ (global fetch).");
   }
   const res = await fetchImpl(url, {
     redirect: "follow",
     headers: {
-      "User-Agent": `freedisk-cli-npm/${pkg.version}`,
+      "User-Agent": `freedisk-npm/${pkg.version}`,
       Accept: asText ? "text/plain" : "application/octet-stream",
     },
     signal: AbortSignal.timeout(120000),
@@ -104,7 +104,7 @@ async function install(opts = {}) {
   }
 
   const url = `${releaseBase}/${asset}`;
-  log(`freedisk-cli: downloading ${asset} (v${version})`);
+  log(`freedisk: downloading ${asset} (v${version})`);
 
   let res;
   try {
@@ -139,9 +139,9 @@ async function install(opts = {}) {
         `checksum mismatch for ${asset}: got ${got}, expected ${expected}`,
       );
     }
-    log(`freedisk-cli: ${sums.name} ok`);
+    log(`freedisk: ${sums.name} ok`);
   } else {
-    log("freedisk-cli: no checksums.txt/SHA256SUMS on the release; skipping digest check");
+    log("freedisk: no checksums.txt/SHA256SUMS on the release; skipping digest check");
   }
 
   fs.mkdirSync(destDir, { recursive: true });
@@ -159,7 +159,7 @@ async function install(opts = {}) {
     }
     throw err;
   }
-  log(`freedisk-cli: installed ${dest}`);
+  log(`freedisk: installed ${dest}`);
   return dest;
 }
 
@@ -167,7 +167,7 @@ async function main() {
   try {
     await install();
   } catch (err) {
-    console.error(`freedisk-cli: ${err.message}`);
+    console.error(`freedisk: ${err.message}`);
     process.exit(1);
   }
 }

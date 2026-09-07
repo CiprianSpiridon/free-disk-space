@@ -1,16 +1,16 @@
-# freedisk-cli
+# free-disk-space
 
 macOS disk-audit CLI. **Scan never deletes.**
 
-The command is `freedisk`. The npm name is `freedisk-cli` because `freedisk`
-is already taken on npmjs.com.
+The npm package is `free-disk-space` (same as the GitHub repo). The
+command is `freedisk`.
 
 This package is a thin wrapper. It does not compile Go. `postinstall`
 downloads `freedisk-darwin-arm64` or `freedisk-darwin-amd64` from
 [GitHub Releases](https://github.com/CiprianSpiridon/free-disk-space/releases).
 
 ```bash
-npm i -g freedisk-cli
+npm i -g free-disk-space
 freedisk version
 freedisk scan --quick
 ```
@@ -28,7 +28,7 @@ Scan never deletes. The only mutate path is `freedisk delete <id>`. There is
 no `delete --all`. Non-TTY delete requires `--yes`.
 
 ```bash
-npm uninstall -g freedisk-cli
+npm uninstall -g free-disk-space
 ```
 
 MIT. Source: [CiprianSpiridon/free-disk-space](https://github.com/CiprianSpiridon/free-disk-space).

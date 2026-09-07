@@ -19,6 +19,33 @@ func TestLookupDuplicateIDsFailClosed(t *testing.T) {
 	}
 }
 
+func TestApplyOneKeepNeverAndTmpRoot(t *testing.T) {
+	dir := t.TempDir()
+	p := filepath.Join(dir, "x")
+	_ = os.WriteFile(p, []byte("z"), 0o644)
+	if err := ApplyOne(findings.Finding{ID: "k", Path: p, Risk: findings.RiskKeep}); err == nil {
+		t.Fatal("keep")
+	}
+	if err := ApplyOne(findings.Finding{ID: "n", Path: p, Risk: findings.RiskNever}); err == nil {
+		t.Fatal("never")
+	}
+	if err := ApplyOne(findings.Finding{ID: "t", Path: "/private/tmp", Risk: findings.RiskAsk}); err == nil {
+		t.Fatal("tmp root")
+	}
+}
+
+func TestApplyOneDockerBusy(t *testing.T) {
+	old := ProcessRunning
+	ProcessRunning = func(name string) bool { return name == "Docker" }
+	defer func() { ProcessRunning = old }()
+	p := filepath.Join(t.TempDir(), "Docker.raw")
+	_ = os.WriteFile(p, []byte("x"), 0o644)
+	err := ApplyOne(findings.Finding{ID: "d", Path: p, Risk: findings.RiskAsk, Category: "docker"})
+	if err == nil {
+		t.Fatal("expected docker busy")
+	}
+}
+
 func TestApplyOneRemovesFile(t *testing.T) {
 	dir := t.TempDir()
 	p := filepath.Join(dir, "x")

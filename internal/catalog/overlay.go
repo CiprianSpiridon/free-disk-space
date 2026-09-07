@@ -170,6 +170,12 @@ func Merge(bundled *Catalog, ov *Overlay, home string) *Catalog {
 	for _, add := range ov.Add {
 		add.Path = expandKey(add.Path, home)
 		add.Scans = defaultScans(add, false)
+		if _, ok := disabled[add.Path]; ok {
+			continue
+		}
+		if from, ok := unassign[add.Path]; ok {
+			add.Scans = subtract(add.Scans, from)
+		}
 		if mergeAddAny(&out, add) {
 			continue
 		}

@@ -107,6 +107,9 @@ func lexicalOK(path string) bool {
 			return false
 		}
 	}
+	if tooBroad(clean, home) {
+		return false
+	}
 	if tmp := os.Getenv("TMPDIR"); tmp != "" {
 		t := filepath.Clean(tmp)
 		if t != "" && (clean == t || c == canonical(t)) {
@@ -128,6 +131,25 @@ func lexicalOK(path string) bool {
 		}
 	}
 	return true
+}
+
+func tooBroad(clean, home string) bool {
+	if clean == "/opt/homebrew" || clean == "/Library/Developer" {
+		return true
+	}
+	if home == "" {
+		return false
+	}
+	h := filepath.Clean(home)
+	for _, b := range []string{"Downloads", "Desktop", "Documents", "Pictures", "Movies", "Music", "Library"} {
+		if clean == filepath.Join(h, b) {
+			return true
+		}
+	}
+	if clean == filepath.Join(h, "Library", "Containers") {
+		return true
+	}
+	return false
 }
 
 // CanDelete reports whether path is allowed as a delete target.

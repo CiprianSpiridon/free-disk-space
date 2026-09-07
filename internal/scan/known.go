@@ -39,6 +39,10 @@ func expandGlobs(e catalog.Entry) []string {
 	if err != nil || len(m) == 0 {
 		return nil
 	}
+	const capN = 4096
+	if len(m) > capN {
+		return m[:capN]
+	}
 	return m
 }
 

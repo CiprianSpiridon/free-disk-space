@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"fmt"
 	"os"
 	"path/filepath"
 	"time"
@@ -36,7 +37,7 @@ func runDrill(ctx *Context) error {
 		}
 		select {
 		case <-cctx.Done():
-			return nil
+			return fmt.Errorf("drill timed out")
 		default:
 		}
 		ents, err := os.ReadDir(f.Path)
@@ -47,8 +48,7 @@ func runDrill(ctx *Context) error {
 		ok := true
 		for _, ent := range ents {
 			if cctx.Err() != nil {
-				ok = false
-				break
+				return fmt.Errorf("drill timed out")
 			}
 			if ent.Type()&os.ModeSymlink != 0 {
 				continue

@@ -78,6 +78,20 @@ func paths(ents []Entry) []string {
 	return s
 }
 
+func TestOverlayAddRespectsDisable(t *testing.T) {
+	home := "/Users/test"
+	p := ExpandPath("~/skip-me", home)
+	bundled := &Catalog{}
+	ov := &Overlay{
+		Disable: []string{"~/skip-me"},
+		Add:     []Entry{{Path: "~/skip-me", Scans: []string{"quick"}, Risk: "ask", Category: "user"}},
+	}
+	m := Merge(bundled, ov, home)
+	if containsPath(m.Home, p) {
+		t.Fatal("disabled add still present")
+	}
+}
+
 func TestOverlayAddMergesLibraryNotDuplicateHome(t *testing.T) {
 	home := "/Users/test"
 	lib := ExpandPath("~/Library/Caches", home)

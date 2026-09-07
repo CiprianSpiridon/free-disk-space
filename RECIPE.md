@@ -1,12 +1,11 @@
 # RECIPE — macOS disk audit for agents
 
-This is the research output. **Purpose:** a later CLI that Claude Code,
-Codex, Grok, Cursor, and similar agents can run themselves to answer
-“what is eating disk on this Mac?” and propose reclaim commands.
+This is the spec the `freedisk` CLI encodes. Agents (Claude Code, Codex,
+Grok, Cursor, …) run `freedisk scan --quick --json` (or `--dev` / full)
+to answer “what is eating disk on this Mac?” and propose reclaim commands.
 
-Until the CLI exists, an agent follows this recipe with the shell.
-When building the CLI, encode this recipe — do not invent a different
-scan order.
+Do not invent a different scan order. The shell recipe below is the
+fallback if the binary is not built.
 
 Companion files:
 
@@ -40,7 +39,7 @@ Answer:
 Emit:
 
 - Human summary (markdown): fullness, top reclaimable, top keep
-- Machine findings: JSON array matching `findings.schema.json`
+- Machine findings: JSON **object** matching `findings.schema.json` (host, volume, findings[])
 
 One finding = one reclaimable or notable path. Do not dump every 4 KB
 folder.
@@ -503,19 +502,16 @@ separate pool jobs.
 
 ---
 
-## 13. CLI shape (when we build it)
+## 13. CLI shape
 
 Mole’s split is the right product shape (see `research/mole-patterns.md`).
 We are narrower: developer reclaim for agents, not a consumer Mac cleaner.
 
 ```text
 freedisk scan              # phases 0–8, JSON + markdown. Never deletes.
-freedisk scan --quick      # phase 0 + 1 only. Never deletes.
+freedisk scan --quick      # volume + known + tmp children (e.g. /private/tmp/kensi-*). Never deletes.
 freedisk why               # top reclaimable (report)
-freedisk worktrees         # grok / claude / git leftovers (report)
-freedisk artifacts         # project node_modules/target/.next (report)
-freedisk simulators        # apple + android (report)
-freedisk caches            # package-manager caches (report)
+freedisk catalog / scans   # optional overlay; bundled catalog is the starting point
 freedisk delete <id> [<id>…]  # ONLY mutate path. Explicit ids. Confirm each.
                              # No --all. No default. Agents must not call
                              # this unless the human named those ids.

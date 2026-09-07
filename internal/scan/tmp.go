@@ -14,6 +14,17 @@ func init() {
 	Register(Phase{Name: "tmp", Quick: true, Dev: true, Run: runTmp})
 }
 
+func resolveTmpRoot(root string) string {
+	clean := filepath.Clean(root)
+	switch clean {
+	case "/tmp", "/private/tmp", "/var/tmp", "/private/var/tmp":
+		if rp, err := filepath.EvalSymlinks(root); err == nil {
+			return rp
+		}
+	}
+	return root
+}
+
 func runTmp(ctx *Context) error {
 	idle := ctx.Catalog.Thresholds.TmpIdleDays
 	if idle == 0 {
@@ -29,6 +40,7 @@ func runTmp(ctx *Context) error {
 		if root == "" {
 			continue
 		}
+		root = resolveTmpRoot(root)
 		key := seenKey(root)
 		if _, ok := seen[key]; ok {
 			continue
@@ -70,6 +82,7 @@ func runTmp(ctx *Context) error {
 				Risk:     findings.RiskAsk,
 				LastUsed: last,
 				Why:      why,
+				Reclaim:  &findings.Reclaim{Cmd: "rm -rf " + p},
 			})
 		}
 	}

@@ -41,7 +41,8 @@ JSON is default when stdout is not a TTY. Prefer --json when piping.
 Exit codes: 0 report, 2 usage, 3 unknown id.
 
 node_modules / vendor / target: listed; idle ≥ 30 days high-confidence.
-/tmp /var/tmp $TMPDIR: children only, never the root.
+/tmp /private/tmp /var/tmp $TMPDIR: children only (e.g. /private/tmp/kensi-*), never the root.
+Idle ≥ 7 days or ≥ 1 GiB tmp children are high-confidence reclaimable.
 `
 
 func ensureHelp() { lookup("help") }

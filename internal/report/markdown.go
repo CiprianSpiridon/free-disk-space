@@ -58,7 +58,13 @@ func highConfidence(f findings.Finding, opt Options) bool {
 		return idleDays(f.LastUsed) >= opt.ArtifactIdleDays
 	case findings.RiskAsk:
 		if f.Category == "tmp" || strings.HasPrefix(f.Category, "tmp") {
-			return idleDays(f.LastUsed) >= opt.TmpIdleDays
+			if idleDays(f.LastUsed) >= opt.TmpIdleDays {
+				return true
+			}
+			// Huge tmp children (e.g. leftover /private/tmp/kensi-*) are reclaimable even if recently touched.
+			if f.Bytes >= 1<<30 {
+				return true
+			}
 		}
 	}
 	return false

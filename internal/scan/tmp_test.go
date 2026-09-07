@@ -6,8 +6,11 @@ import (
 	"testing"
 	"time"
 
+	"strings"
+
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
+	"github.com/CiprianSpiridon/free-disk-space/internal/policy"
 )
 
 func TestTmpChildIdleNotRoot(t *testing.T) {
@@ -45,6 +48,62 @@ func TestTmpChildIdleNotRoot(t *testing.T) {
 	}
 	if sawRoot {
 		t.Fatal("root should not be reclaimable from tmp phase")
+	}
+}
+
+func TestTmpKensiStyleChildrenAreCaught(t *testing.T) {
+	root := t.TempDir()
+	// /private/tmp/kensi* leftovers: large named children, not the tmp root.
+	names := []string{"kensi-app", "kensi-build", "kensi-cache"}
+	old := time.Now().Add(-30 * 24 * time.Hour)
+	for _, n := range names {
+		p := filepath.Join(root, n)
+		if err := os.Mkdir(p, 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(filepath.Join(p, "blob"), make([]byte, 6<<20), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		_ = os.Chtimes(p, old, old)
+	}
+	tiny := filepath.Join(root, "tiny")
+	_ = os.Mkdir(tiny, 0o755)
+	cat := &catalog.Catalog{
+		Tmp:        []catalog.Entry{{Path: root, Category: "tmp", Risk: "keep", Scans: []string{"quick", "dev", "full"}}},
+		Thresholds: catalog.Thresholds{TmpIdleDays: 7, ArtifactListMinBytes: 5 << 20},
+	}
+	rep := findings.NewReport(root)
+	ctx := &Context{Mode: "quick", Catalog: cat, Home: root, Report: &rep}
+	if err := runTmp(ctx); err != nil {
+		t.Fatal(err)
+	}
+	found := map[string]findings.Finding{}
+	for _, f := range rep.Findings {
+		if f.Path == root {
+			t.Fatal("tmp root must not be a reclaim finding")
+		}
+		found[filepath.Base(f.Path)] = f
+	}
+	for _, n := range names {
+		f, ok := found[n]
+		if !ok {
+			t.Fatalf("missed %s in %+v", n, rep.Findings)
+		}
+		if f.Risk != findings.RiskAsk {
+			t.Fatalf("%s risk %s", n, f.Risk)
+		}
+		if f.Bytes < 5<<20 {
+			t.Fatalf("%s bytes %d", n, f.Bytes)
+		}
+		if f.Reclaim == nil || !strings.Contains(f.Reclaim.Cmd, n) {
+			t.Fatalf("%s reclaim %+v", n, f.Reclaim)
+		}
+		if !policy.CanDelete(f.Path) {
+			t.Fatalf("delete must allow tmp child %s", f.Path)
+		}
+	}
+	if _, ok := found["tiny"]; ok {
+		t.Fatal("sub-5MiB child should be skipped")
 	}
 }
 

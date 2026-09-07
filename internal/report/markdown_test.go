@@ -31,6 +31,7 @@ func TestMarkdownKeepVsIdleRebuildableVsAskTmp(t *testing.T) {
 		{ID: "old-nm", Path: "/a/node_modules", Bytes: 9, Category: "node_modules", Risk: findings.RiskRebuildable, LastUsed: old},
 		{ID: "new-nm", Path: "/b/node_modules", Bytes: 9, Category: "node_modules", Risk: findings.RiskRebuildable, LastUsed: yest},
 		{ID: "old-tmp", Path: "/tmp/x", Bytes: 9, Category: "tmp", Risk: findings.RiskAsk, LastUsed: time.Now().Add(-30 * 24 * time.Hour).Format("2006-01-02")},
+		{ID: "kensi", Path: "/private/tmp/kensi-app", Bytes: 200 << 30, Category: "tmp", Risk: findings.RiskAsk, LastUsed: yest},
 	}
 	var buf bytes.Buffer
 	if err := Markdown(&buf, r, Options{ArtifactIdleDays: 30, TmpIdleDays: 7}); err != nil {
@@ -49,6 +50,9 @@ func TestMarkdownKeepVsIdleRebuildableVsAskTmp(t *testing.T) {
 	}
 	if !strings.Contains(reclaim, "old-tmp") {
 		t.Fatal("idle tmp child should be reclaimable")
+	}
+	if !strings.Contains(reclaim, "kensi") {
+		t.Fatal("huge /private/tmp/kensi-* must be high-confidence even if recent")
 	}
 	if !strings.Contains(s, "40") && !strings.Contains(s, "B") {
 		t.Fatal("volume missing", s)

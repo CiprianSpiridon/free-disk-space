@@ -1,10 +1,10 @@
-# Known macOS paths the CLI should size if they exist.
+# Known macOS paths the CLI sizes if they exist.
 # Paths starting with ~ expand to the current user home.
-# Glob: if `glob` is true, expand with the shell / glob crate.
+# Glob: if `glob` is true, expand with filepath.Glob (capped).
 # risk: safe-cache | rebuildable | leftover-worktree | unused-runtime | ask | keep | never
-# risk never implies auto-delete. Scan never mutates. delete requires explicit ids.
+# risk never does not imply auto-delete. Scan never mutates. delete requires explicit ids.
 #
-# Measure allocated bytes (du / st_blocks*512), never ls -l size.
+# Measure allocated bytes (st_blocks*512), never ls -l size.
 # Skip missing paths. Never follow symlinks. Never require sudo.
 
 version: 1
@@ -88,7 +88,9 @@ system_wide:
 # /tmp is a symlink to /private/tmp on macOS; size /tmp once (dedupe realpath).
 # $TMPDIR is the per-user temp (usually /var/folders/.../T) and is often the large one.
 tmp:
-  - { path: "/tmp", category: tmp, risk: keep, drill: true, always_drill: true, scans: [quick, dev, full], note: "Never delete /tmp. Drill children. Idle >= tmp_idle_days is high-confidence ask." }
+  # List /private/tmp first so children (e.g. kensi-*) get real paths, not /tmp aliases.
+  - { path: "/private/tmp", category: tmp, risk: keep, drill: true, always_drill: true, scans: [quick, dev, full], note: "Never delete this root. Depth-1 children like kensi-* are reclaim candidates." }
+  - { path: "/tmp", category: tmp, risk: keep, drill: true, always_drill: true, scans: [quick, dev, full], note: "Alias of /private/tmp on macOS; realpath-deduped." }
   - { path: "/var/tmp", category: tmp, risk: keep, drill: true, always_drill: true, scans: [quick, dev, full], note: "Persists across reboot. Never delete /var/tmp." }
   - { path: "$TMPDIR", category: tmp-user, risk: keep, drill: true, always_drill: true, scans: [quick, dev, full], note: "Expand TMPDIR; skip if it realpath-equals /tmp." }
 

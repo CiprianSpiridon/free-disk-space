@@ -86,6 +86,37 @@ func TestCanDeleteIntermediateSymlinkEscape(t *testing.T) {
 	}
 }
 
+func TestCanDeleteTmpChildKensi(t *testing.T) {
+	if !CanDelete("/private/tmp/kensi-app") {
+		t.Fatal("tmp child kensi-app must be deletable")
+	}
+	if !CanDelete("/tmp/kensi-build") {
+		t.Fatal("/tmp/kensi-build must be deletable")
+	}
+	if CanDelete("/private/tmp") {
+		t.Fatal("tmp root refused")
+	}
+}
+
+func TestCanDeleteTooBroadUserTrees(t *testing.T) {
+	home, err := os.UserHomeDir()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if CanDelete(filepath.Join(home, "Downloads")) {
+		t.Fatal("Downloads root refused")
+	}
+	if CanDelete("/Library/Developer") {
+		t.Fatal("/Library/Developer refused")
+	}
+	if CanDelete("/opt/homebrew") {
+		t.Fatal("/opt/homebrew refused")
+	}
+	if !CanDelete(filepath.Join(home, "Downloads", "old.dmg")) {
+		t.Fatal("Downloads child allowed")
+	}
+}
+
 func TestCanDeleteTMPDIRRoot(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("TMPDIR", dir)

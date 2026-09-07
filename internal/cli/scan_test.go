@@ -30,6 +30,7 @@ func TestScanFlags(t *testing.T) {
 
 func TestScanJSONNonTTY(t *testing.T) {
 	dir := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", dir)
 	cat := filepath.Join(dir, "c.yaml")
 	_ = os.WriteFile(cat, []byte("version: 1\nos: macos\n"), 0o644)
 	buf := &bytes.Buffer{}

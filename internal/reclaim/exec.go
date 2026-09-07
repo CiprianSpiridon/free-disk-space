@@ -51,7 +51,18 @@ func ApplyOne(f findings.Finding) error {
 			return fmt.Errorf("%w: %s", ErrBusy, bin)
 		}
 	}
+	if dockerish(f) && (ProcessRunning("Docker") || ProcessRunning("com.docker.backend")) {
+		return fmt.Errorf("%w: docker", ErrBusy)
+	}
 	return os.RemoveAll(f.Path)
+}
+
+func dockerish(f findings.Finding) bool {
+	if strings.Contains(strings.ToLower(f.Category), "docker") {
+		return true
+	}
+	base := strings.ToLower(filepath.Base(f.Path))
+	return base == "docker.raw" || strings.Contains(f.Path, "com.docker.docker")
 }
 
 func repoGitTracked(path string) bool {

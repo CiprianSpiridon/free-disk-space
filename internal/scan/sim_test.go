@@ -19,7 +19,9 @@ func TestSimJoinRuntimeIdentifier(t *testing.T) {
   }
 }`)
 	rep := findings.NewReport("/u")
-	ParseSimctlDevices(raw, &rep, "/u")
+	if _, err := ParseSimctlDevices(raw, &rep, "/u"); err != nil {
+		t.Fatal(err)
+	}
 	if len(rep.Findings) != 1 {
 		t.Fatalf("%+v", rep.Findings)
 	}
@@ -37,7 +39,7 @@ func TestSimJoinRuntimeIdentifier(t *testing.T) {
 
 func TestSimRuntimeUnusedWhenNeverBooted(t *testing.T) {
 	rep := findings.NewReport("/u")
-	booted := ParseSimctlDevices([]byte(`{
+	booted, err := ParseSimctlDevices([]byte(`{
   "devices": {
     "iOS 18": [
       {"udid":"AAA","name":"iPhone","state":"Shutdown","runtimeIdentifier":"rt-used","lastBootedAt":"2026-01-01"},
@@ -45,6 +47,9 @@ func TestSimRuntimeUnusedWhenNeverBooted(t *testing.T) {
     ]
   }
 }`), &rep, "/u")
+	if err != nil {
+		t.Fatal(err)
+	}
 	ParseSimctlRuntimes([]byte(`{
   "runtimes": [
     {"identifier":"rt-used","name":"iOS 18"},
@@ -137,6 +142,32 @@ func TestAndroidSDKRootEnv(t *testing.T) {
 	}
 	if !saw {
 		t.Fatalf("expected ANDROID_SDK_ROOT image: %+v", rep.Findings)
+	}
+}
+
+func TestSimctlBadJSONNotPresent(t *testing.T) {
+	old := SimctlJSON
+	SimctlJSON = func() ([]byte, error) { return []byte("not-json"), nil }
+	defer func() { SimctlJSON = old }()
+	rep := findings.NewReport("/u")
+	ctx := &Context{Report: &rep, Catalog: &catalog.Catalog{}, Home: "/u"}
+	if err := runAppleSim(ctx); err != nil {
+		t.Fatal(err)
+	}
+	ok := false
+	for _, n := range rep.NotPresent {
+		if n == "simctl-json" || n == "simctl" {
+			ok = true
+		}
+	}
+	if !ok && len(rep.Findings) == 0 {
+		// xcrun missing → simctl not_present; bad json → simctl-json
+		for _, n := range rep.NotPresent {
+			if n == "simctl" {
+				return
+			}
+		}
+		t.Fatalf("not_present=%v", rep.NotPresent)
 	}
 }
 

@@ -50,7 +50,10 @@ func runAppleSim(ctx *Context) error {
 		ctx.Report.NotPresent = append(ctx.Report.NotPresent, "simctl")
 		return nil
 	}
-	booted := ParseSimctlDevices(b, ctx.Report, ctx.Home)
+	booted, perr := ParseSimctlDevices(b, ctx.Report, ctx.Home)
+	if perr != nil {
+		ctx.Report.NotPresent = append(ctx.Report.NotPresent, "simctl-json")
+	}
 	rb, err := SimctlRuntimesJSON()
 	if err == nil {
 		ParseSimctlRuntimes(rb, ctx.Report, booted)
@@ -60,11 +63,11 @@ func runAppleSim(ctx *Context) error {
 
 // ParseSimctlDevices joins on runtimeIdentifier, not display name.
 // Path is the on-disk device directory when home is set.
-func ParseSimctlDevices(raw []byte, rep *findings.Report, home string) map[string]bool {
+func ParseSimctlDevices(raw []byte, rep *findings.Report, home string) (map[string]bool, error) {
 	booted := map[string]bool{}
 	var doc simctlDevices
 	if err := json.Unmarshal(raw, &doc); err != nil {
-		return booted
+		return booted, err
 	}
 	deviceDir := ""
 	if home != "" {
@@ -92,7 +95,7 @@ func ParseSimctlDevices(raw []byte, rep *findings.Report, home string) map[strin
 			})
 		}
 	}
-	return booted
+	return booted, nil
 }
 
 // ParseSimctlRuntimes marks a runtime unused-runtime only when none of its devices were ever booted.

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"runtime"
 	"strings"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/version"
@@ -26,9 +27,9 @@ type Global struct {
 }
 
 type command struct {
-	name  string
-	run   func(g *Global, args []string) error
-	long  string
+	name string
+	run  func(g *Global, args []string) error
+	long string
 }
 
 var commands []command
@@ -104,6 +105,9 @@ func wantJSON(g *Global) bool {
 
 // Execute is the CLI entrypoint.
 func Execute(args []string) error {
+	if runtime.GOOS != "darwin" {
+		return fmt.Errorf("%w: freedisk is macOS/APFS only (got %s)", ErrUsage, runtime.GOOS)
+	}
 	if len(args) == 0 {
 		args = []string{"help"}
 	}

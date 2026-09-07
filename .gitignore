@@ -22,3 +22,6 @@ skills-lock.json
 *.test
 *.out
 vendor/
+
+# make build output
+/bin/

@@ -55,7 +55,8 @@ delete ids were named.
 
 ## Install
 
-macOS only. Install with Go. No npm package.
+macOS only. Install with Go. Homebrew tap is not published yet
+([docs/homebrew.md](docs/homebrew.md)). No npm package.
 
 From a checkout:
 

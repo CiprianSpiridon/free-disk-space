@@ -1,0 +1,47 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: "1.22"
+
+      - name: Build darwin binaries
+        run: |
+          set -euo pipefail
+          version="${GITHUB_REF_NAME#v}"
+          ldflags="-s -w -X github.com/CiprianSpiridon/free-disk-space/internal/version.Version=${version}"
+          mkdir -p dist
+          for arch in arm64 amd64; do
+            GOOS=darwin GOARCH="${arch}" CGO_ENABLED=0 \
+              go build -ldflags "${ldflags}" \
+              -o "dist/freedisk-darwin-${arch}" ./cmd/freedisk
+          done
+          (
+            cd dist
+            sha256sum freedisk-darwin-arm64 freedisk-darwin-amd64 > checksums.txt
+          )
+
+      - name: GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/freedisk-darwin-arm64
+            dist/freedisk-darwin-amd64
+            dist/checksums.txt
+          generate_release_notes: true
+          fail_on_unmatched_files: true

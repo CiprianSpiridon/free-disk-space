@@ -198,22 +198,52 @@ Last scan lives at `$XDG_CACHE_HOME/freedisk/last-scan.json` (else
 
 ## Developers of this repo
 
-The CLI encodes [RECIPE.md](RECIPE.md). Do not invent a different scan
-order.
-
-| File | Role |
-| --- | --- |
-| [RECIPE.md](RECIPE.md) | Spec: phases, invariants, finding contract |
-| [catalog/macos-hotspots.yaml](catalog/macos-hotspots.yaml) | Paths, artifacts, APIs, thresholds the scanner loads |
-| [findings.schema.json](findings.schema.json) | JSON contract for scan output |
-| [skills/freedisk/SKILL.md](skills/freedisk/SKILL.md) | Bundled agent skill (`freedisk skill install`) |
-
-`NOTES.md` is a research diary, not the runtime spec.
+macOS + Go 1.22. The CLI **encodes** [RECIPE.md](RECIPE.md); do not invent
+a different phase order.
 
 ```bash
+go test ./...
 go run ./cmd/freedisk help
 go run ./cmd/freedisk scan --quick --json
+go install ./cmd/freedisk
 ```
+
+Set `HOME` (and `XDG_CACHE_HOME`) to a temp dir in tests that call
+`scan`. Do not walk the real home.
+
+### Layout
+
+| Path | What you change |
+| --- | --- |
+| `cmd/freedisk` | `main` only |
+| `internal/cli` | flags, help, `scan` / `delete` / `catalog` / `skill` |
+| `internal/scan` | phases (`Register` + `recipeOrder` in `run.go`) |
+| `internal/catalog` | YAML load, overlay merge (`~/.config/freedisk/catalog.yaml`) |
+| `internal/policy` | delete deny list — scan must not import this to mutate |
+| `internal/size` | allocated bytes, `WalkDir`, no `os/exec` |
+| `catalog/macos-hotspots.yaml` | bundled paths (`go:embed` via `catalog/embed.go`) |
+| `findings.schema.json` | JSON contract; keep `internal/findings` in sync |
+| `skills/freedisk/SKILL.md` | agent skill; `freedisk skill install` copies it |
+
+`NOTES.md` is a research diary, not the spec.
+
+### Add a known path
+
+1. Append a row to `catalog/macos-hotspots.yaml` (existence skip, `~` ok).
+2. Set `risk`, optional `reclaim`, `drill: true` if children should be named.
+3. `go test ./internal/catalog ./internal/scan` — `starting_point_test` forbids machine-specific paths like `work_cip`.
+
+Users can add paths without a rebuild: `freedisk catalog add PATH --scans quick,dev`.
+
+### Add a scan phase
+
+1. New file in `internal/scan` with `init() { Register(Phase{Name, Quick, Dev, Run}) }`.
+2. Append the name to `recipeOrder` in `run.go` (and `builtinPhases` in `cli/scans.go`).
+3. `Quick: true` → `--quick`. `Dev: true` → `--dev`. Default `scan` runs every registered phase.
+4. Phase must not delete. Progress: `ctx.logf(...)` (stderr).
+5. Tests with `t.TempDir()` catalogs; inject `exec` via package vars (`SimctlJSON`, `RustupList`, …).
+
+Current order: volume → known → tmp → drill → toolchains → artifacts → worktrees → apple-sim → android-sim → apis.
 
 ---
 

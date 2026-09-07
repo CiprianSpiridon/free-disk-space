@@ -1,11 +1,13 @@
 package size
 
 import (
+	"fmt"
 	"go/parser"
 	"go/token"
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 )
 
 func TestFileAllocatedPositive(t *testing.T) {
@@ -46,6 +48,31 @@ func TestUnreadablePermission(t *testing.T) {
 	}
 	if os.Getuid() != 0 && len(r.Unreadable) == 0 {
 		t.Fatalf("expected unreadable, got %+v", r)
+	}
+}
+
+func TestHeartbeatFires(t *testing.T) {
+	dir := t.TempDir()
+	for i := 0; i < 20; i++ {
+		if err := os.WriteFile(filepath.Join(dir, fmt.Sprintf("f%d", i)), []byte("x"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	var n int
+	SetHeartbeat(func(root, current string, visited int, elapsed time.Duration) {
+		n++
+	})
+	setHeartbeatEvery(time.Nanosecond)
+	defer func() {
+		SetHeartbeat(nil)
+		setHeartbeatEvery(0)
+	}()
+	r := Of(dir)
+	if r.Err != nil || r.Missing {
+		t.Fatalf("%+v", r)
+	}
+	if n == 0 {
+		t.Fatal("expected heartbeat during walk")
 	}
 }
 

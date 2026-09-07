@@ -72,7 +72,14 @@ func entryFinding(e catalog.Entry, path string, sz size.Result) findings.Finding
 }
 
 // Known sizes catalog paths for the current mode. Does not Register.
-func Known(cat *catalog.Catalog, mode, home string, rep *findings.Report) {
+func Known(ctx *Context) {
+	if ctx == nil || ctx.Catalog == nil || ctx.Report == nil {
+		return
+	}
+	cat := ctx.Catalog
+	mode := ctx.Mode
+	home := ctx.Home
+	rep := ctx.Report
 	seen := map[string]struct{}{}
 	var fullTrees []string
 	for _, e := range cat.ModePaths(mode) {
@@ -91,6 +98,7 @@ func Known(cat *catalog.Catalog, mode, home string, rep *findings.Report) {
 			var sz size.Result
 			inodeOnly := e.AlwaysDrill || e.Category == "tmp" || e.Category == "tmp-user" || (e.Drill && e.Risk == "keep")
 			if inodeOnly {
+				ctx.logf("listing %s", p)
 				fi, err := os.Lstat(p)
 				if err != nil {
 					if os.IsNotExist(err) {
@@ -103,6 +111,7 @@ func Known(cat *catalog.Catalog, mode, home string, rep *findings.Report) {
 				}
 				sz = size.OfFileInfo(fi)
 			} else {
+				ctx.logf("sizing %s", p)
 				sz = size.Of(p)
 			}
 			noteUnreadable(rep, sz.Unreadable...)

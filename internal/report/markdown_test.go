@@ -57,10 +57,41 @@ func TestMarkdownKeepVsIdleRebuildableVsAskTmp(t *testing.T) {
 	if !strings.Contains(s, "last used") {
 		t.Fatal("tables must show last used")
 	}
+	if !strings.Contains(s, "/private/tmp/kensi-app") {
+		t.Fatal("tables must show full paths")
+	}
+	if !strings.Contains(s, "| id | path |") {
+		t.Fatal("id and path columns")
+	}
 	if !strings.Contains(reclaim, old) && !strings.Contains(reclaim, "d)") {
 		t.Fatal("reclaimable rows need a date")
 	}
 	if !strings.Contains(s, "40") && !strings.Contains(s, "B") {
 		t.Fatal("volume missing", s)
+	}
+}
+
+func TestMarkdownFallbackCommandAndQuotedPath(t *testing.T) {
+	r := findings.NewReport("/Users/x")
+	r.Findings = []findings.Finding{
+		{ID: "logs", Path: "/Users/x/Library/Logs", Bytes: 10, Category: "logs", Risk: findings.RiskSafeCache},
+		{ID: "space", Path: "/tmp/foo bar", Bytes: 10, Category: "tmp", Risk: findings.RiskAsk, LastUsed: time.Now().Add(-30 * 24 * time.Hour).Format("2006-01-02")},
+	}
+	var buf bytes.Buffer
+	if err := Markdown(&buf, r, Options{TmpIdleDays: 7}); err != nil {
+		t.Fatal(err)
+	}
+	s := buf.String()
+	if strings.Contains(s, "| `` |") || strings.Contains(s, "|  |") {
+		t.Fatal("empty command cell", s)
+	}
+	if !strings.Contains(s, "`rm -rf /Users/x/Library/Logs`") {
+		t.Fatal("fallback reclaim command missing", s)
+	}
+	if !strings.Contains(s, "`rm -rf '/tmp/foo bar'`") {
+		t.Fatal("space in path must be quoted", s)
+	}
+	if !strings.Contains(s, "/Users/x/Library/Logs") {
+		t.Fatal("full path missing", s)
 	}
 }

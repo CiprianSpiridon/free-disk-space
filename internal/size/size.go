@@ -1,12 +1,15 @@
 package size
 
 import (
+	"context"
 	"errors"
 	"io/fs"
 	"os"
 	"path/filepath"
 	"strings"
+	"sync"
 	"syscall"
+	"time"
 )
 
 // Result is allocated vs apparent size for one path.
@@ -21,6 +24,15 @@ type Result struct {
 // Of returns allocated (st_blocks*512) and apparent (st_size) for path.
 // Directories are walked in-process. Symlinks are not followed.
 func Of(path string) Result {
+	return OfContext(context.Background(), path)
+}
+
+// OfContext is Of with a cancel/deadline. On cancel the walk stops and
+// Allocated is not returned (incomplete).
+func OfContext(ctx context.Context, path string) Result {
+	if ctx == nil {
+		ctx = context.Background()
+	}
 	fi, err := os.Lstat(path)
 	if err != nil {
 		if errors.Is(err, fs.ErrNotExist) {
@@ -36,7 +48,7 @@ func Of(path string) Result {
 		a, p := fromInfo(fi)
 		return Result{Allocated: a, Apparent: p}
 	}
-	return dirSize(path)
+	return dirSize(ctx, path)
 }
 
 var extraSkip []string
@@ -65,11 +77,54 @@ func skipWalk(p string) bool {
 
 const sfDataless = 0x40000000
 
-func dirSize(root string) Result {
+var (
+	hbMu      sync.Mutex
+	heartbeat func(root, current string, visited int, elapsed time.Duration)
+	hbEvery   = 2 * time.Second
+)
+
+// SetHeartbeat is called about every 2s during a directory walk. nil clears.
+func SetHeartbeat(fn func(root, current string, visited int, elapsed time.Duration)) {
+	hbMu.Lock()
+	heartbeat = fn
+	hbMu.Unlock()
+}
+
+func setHeartbeatEvery(d time.Duration) {
+	hbMu.Lock()
+	if d <= 0 {
+		hbEvery = 2 * time.Second
+	} else {
+		hbEvery = d
+	}
+	hbMu.Unlock()
+}
+
+func dirSize(ctx context.Context, root string) Result {
 	var alloc, app int64
 	var unread []string
 	seenIno := map[[2]uint64]struct{}{}
+	t0 := time.Now()
+	var lastHB time.Time
+	visited := 0
 	err := filepath.WalkDir(root, func(p string, d fs.DirEntry, err error) error {
+		if ctx.Err() != nil {
+			return fs.SkipAll
+		}
+		visited++
+		now := time.Now()
+		hbMu.Lock()
+		fn := heartbeat
+		every := hbEvery
+		hbMu.Unlock()
+		if fn != nil {
+			if lastHB.IsZero() {
+				lastHB = now
+			} else if now.Sub(lastHB) >= every {
+				fn(root, p, visited, now.Sub(t0))
+				lastHB = now
+			}
+		}
 		if err != nil {
 			if os.IsPermission(err) || errors.Is(err, fs.ErrPermission) {
 				unread = append(unread, p)
@@ -110,6 +165,9 @@ func dirSize(root string) Result {
 		app += ap
 		return nil
 	})
+	if ctx.Err() != nil {
+		return Result{Err: ctx.Err(), Unreadable: unread}
+	}
 	return Result{Allocated: alloc, Apparent: app, Err: err, Unreadable: unread}
 }
 

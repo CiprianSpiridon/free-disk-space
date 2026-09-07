@@ -49,6 +49,7 @@ func runTmp(ctx *Context) error {
 			continue
 		}
 		seen[key] = struct{}{}
+		ctx.logf("listing tmp %s", root)
 		ents, err := os.ReadDir(root)
 		if err != nil {
 			if os.IsPermission(err) {
@@ -88,7 +89,7 @@ func runTmp(ctx *Context) error {
 				Risk:     findings.RiskAsk,
 				LastUsed: last,
 				Why:      why,
-				Reclaim:  &findings.Reclaim{Cmd: "rm -rf " + p},
+				Reclaim:  &findings.Reclaim{Cmd: rmRf(p)},
 			})
 		}
 	}

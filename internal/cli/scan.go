@@ -16,19 +16,23 @@ func init() {
 	AddCommand("scan", scanLong, runScan)
 }
 
-const scanLong = `scan [--quick|--dev|--mode=NAME] [--json]
+const scanLong = `scan [--quick|--dev|--mode=NAME] [--json] [--quiet]
 
 Modes:
   quick  volume + known catalog paths + tmp children (not cargo-target-only)
   dev    leftover worktrees + project artifacts + catalog paths tagged dev
   full   all enabled phases (default)
 
+Progress goes to stderr so JSON/markdown stdout stays usable. --quiet silences it.
+Markdown tables list id, full path, last used, and a reclaim command
+(catalog command or rm -rf PATH). Drill is time-budgeted and never aborts the scan.
+
 scan never deletes. catalog add --scans and scans disable change what runs.
 `
 
 func runScan(g *Global, args []string) error {
 	mode := "full"
-	quick, dev := false, false
+	quick, dev, quiet := false, false, false
 	for _, a := range args {
 		switch {
 		case a == "--quick":
@@ -41,6 +45,8 @@ func runScan(g *Global, args []string) error {
 			return fmt.Errorf("%w: --mode needs a value", ErrUsage)
 		case a == "--json":
 			g.JSON = true
+		case a == "--quiet" || a == "-q":
+			quiet = true
 		default:
 			return fmt.Errorf("%w: unknown flag %s", ErrUsage, a)
 		}
@@ -70,6 +76,11 @@ func runScan(g *Global, args []string) error {
 	rep := findings.NewReport(home)
 	rep.Host.Arch = runtime.GOARCH
 	ctx := &scan.Context{Mode: mode, Catalog: merged, Home: home, Report: &rep}
+	if !quiet && g.Stderr != nil {
+		ctx.Log = func(msg string) {
+			fmt.Fprintf(g.Stderr, "freedisk: %s\n", msg)
+		}
+	}
 	if err := scan.Run(ctx); err != nil {
 		return err
 	}

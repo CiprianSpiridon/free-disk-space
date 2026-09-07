@@ -39,7 +39,10 @@ freedisk scans disable artifacts
 - Fullness from `diskutil apfs list`, not `df /`.
 - Bytes are allocated (`st_blocks*512`).
 - Tmp **roots** (`/tmp`, `/private/tmp`, `/var/tmp`, `$TMPDIR`) are keep. **Children** ≥ 5 MiB are listed. Idle ≥ 7 days or ≥ 1 GiB → high-confidence reclaimable in the markdown report; JSON `risk` stays `ask`.
+- Markdown tables always include **id**, **full path**, **last used**, and a **command**. If the catalog has no tool-specific reclaim, the command is `rm -rf PATH`. Never invent a path from a truncated id — use the path column or JSON `.path`.
 - Print reclaim commands. Do not run them from scan.
+- Progress is on stderr (`freedisk: phase …`); JSON stdout stays clean. `--quiet` silences progress.
+- Full `freedisk scan` time-budgets the drill phase. It keeps partial children and still prints the report. It does not abort with `drill timed out`.
 
 ## Delete (only if the human listed ids)
 

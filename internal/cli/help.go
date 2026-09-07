@@ -41,6 +41,12 @@ Delete (explicit ids only; never --all; never automatic):
   the human named those ids. Refused: keep/never, git-tracked, busy
   npm/pnpm/yarn/cargo/uv, tmp roots, /System, ~/.cargo as a whole, /, $HOME.
 
+Markdown tables list id, full path, last used, and a reclaim command
+(catalog command, or rm -rf PATH). Never guess a path from a truncated id.
+Progress goes to stderr (freedisk: phase ...); --quiet silences it.
+freedisk scan (full) time-budgets drill and still prints the report — it
+does not abort with "drill timed out".
+
 JSON is default when stdout is not a TTY. Prefer --json when piping.
 
 Exit codes: 0 report, 2 usage, 3 unknown id.

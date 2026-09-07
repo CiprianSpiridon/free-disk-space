@@ -33,6 +33,7 @@ go run ./cmd/freedisk scan --quick --json
 ```
 
 `--quick` is volume + known catalog paths + **tmp children** (including
-`/private/tmp/kensi-*` and other fat `/tmp` dirs). Scan never deletes.
-`freedisk delete <id>` is the only mutate path: explicit ids, confirmation,
-never `--all`.
+`/private/tmp/kensi-*` and other fat `/tmp` dirs). Markdown tables include
+**id, full path, last used, and a reclaim command**. Progress goes to
+stderr. Scan never deletes. `freedisk delete <id>` is the only mutate
+path: explicit ids, confirmation, never `--all`.

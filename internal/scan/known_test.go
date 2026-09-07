@@ -28,7 +28,7 @@ func TestKnownSkipMissingAndEmitNPM(t *testing.T) {
 		},
 	}
 	rep := findings.NewReport(home)
-	Known(cat, "quick", home, &rep)
+	Known(&Context{Catalog: cat, Mode: "quick", Home: home, Report: &rep})
 	if len(rep.Findings) != 1 {
 		t.Fatalf("findings=%d %+v", len(rep.Findings), rep.Findings)
 	}
@@ -47,7 +47,7 @@ func TestKnownDisabledAndGlobAndDevTag(t *testing.T) {
 	}, home)
 	_ = os.MkdirAll(filepath.Join(home, "onlydev"), 0o755)
 	rep := findings.NewReport(home)
-	Known(cat, "quick", home, &rep)
+	Known(&Context{Catalog: cat, Mode: "quick", Home: home, Report: &rep})
 	for _, f := range rep.Findings {
 		if strings.Contains(f.Path, ".npm") || strings.Contains(f.Path, "onlydev") {
 			t.Fatalf("unexpected %s", f.Path)
@@ -56,7 +56,7 @@ func TestKnownDisabledAndGlobAndDevTag(t *testing.T) {
 	dir := t.TempDir()
 	cat2 := &catalog.Catalog{Home: []catalog.Entry{{Path: filepath.Join(dir, "nope-*"), Glob: true, Category: "x", Risk: "ask", Scans: []string{"quick", "full"}}}}
 	rep2 := findings.NewReport(home)
-	Known(cat2, "quick", home, &rep2)
+	Known(&Context{Catalog: cat2, Mode: "quick", Home: home, Report: &rep2})
 	if len(rep2.Findings) != 0 {
 		t.Fatal("glob zero matches should skip")
 	}
@@ -87,7 +87,7 @@ func TestKnownRealpathDedupeNoExec(t *testing.T) {
 		{Path: link, Category: "tmp", Risk: "keep", Scans: []string{"quick", "full"}},
 	}}
 	rep := findings.NewReport(dir)
-	Known(cat, "quick", dir, &rep)
+	Known(&Context{Catalog: cat, Mode: "quick", Home: dir, Report: &rep})
 	if len(rep.Findings) != 1 {
 		t.Fatalf("dedupe want 1 got %d", len(rep.Findings))
 	}

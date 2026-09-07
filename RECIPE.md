@@ -169,6 +169,13 @@ For each ≥ 1 GB directory: `du -d 1 -h "$dir" | sort -hr`.
 Stop when children are < ~500 MB or the child is a known file
 (`Docker.raw`). Recurse once more on any child still ≥ 1 GB.
 
+Skip `keep` / `never` / `safe-cache` / tmp roots / artifact leaves
+(`node_modules`, `target`, …). Largest parents first.
+
+This phase is **time-budgeted** (about 3 minutes, 20s per child walk).
+Keep whatever children were sized. **Never fail the scan** with
+`drill timed out` — print the report. Progress goes to stderr.
+
 ### Phase 4 — Pruned artifact walk (work roots only)
 
 Walk configurable work roots. Bundled defaults (skip if missing):
@@ -461,10 +468,12 @@ Never delete OS update snapshots. There is no `delete --all`.
 - Note if df / disagrees
 
 ## Reclaimable (high confidence)
-table: bucket, size, risk, command
+table: id, path, size, last used, risk, command
+command is the catalog reclaim, or `rm -rf PATH` (quoted). Never empty
+when path is set. The id is for `freedisk delete`; the path is what to act on.
 
 ## Ask first
-table: bucket, size, why
+table: id, path, size, last used, why, command
 
 ## Keep / not reclaim
 one line each (Photos, current Xcode, source trees)

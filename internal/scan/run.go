@@ -7,6 +7,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"time"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
@@ -52,6 +53,14 @@ type Context struct {
 	Home     string
 	Report   *findings.Report
 	Diskutil func() (string, error)
+	Log      func(string)
+}
+
+func (ctx *Context) logf(format string, args ...any) {
+	if ctx == nil || ctx.Log == nil {
+		return
+	}
+	ctx.Log(fmt.Sprintf(format, args...))
 }
 
 func registerCore() {
@@ -105,7 +114,7 @@ func listLocalSnapshots() []string {
 }
 
 func runKnown(ctx *Context) error {
-	Known(ctx.Catalog, ctx.Mode, ctx.Home, ctx.Report)
+	Known(ctx)
 	return nil
 }
 
@@ -171,6 +180,11 @@ func Run(ctx *Context) error {
 	if ctx.Catalog != nil {
 		size.SetSkipPrefixes(ctx.Catalog.Thresholds.SkipSystemPrefixes)
 	}
+	size.SetHeartbeat(func(root, current string, visited int, elapsed time.Duration) {
+		ctx.logf("still walking %s (%d inodes, %s) … %s", root, visited, elapsed.Round(time.Second), current)
+	})
+	defer size.SetHeartbeat(nil)
+	ctx.logf("scan %s starting", ctx.Mode)
 	mu.Lock()
 	list := append([]Phase{}, phases...)
 	mu.Unlock()
@@ -180,17 +194,23 @@ func Run(ctx *Context) error {
 		if !wantPhase(ctx, p) {
 			continue
 		}
+		ctx.logf("phase %s", p.Name)
+		t0 := time.Now()
 		if err := p.Run(ctx); err != nil {
+			ctx.logf("phase %s failed after %s: %v", p.Name, time.Since(t0).Round(time.Millisecond), err)
 			if p.Name == VolumePhaseName {
 				return err
 			}
 			if first == nil {
 				first = err
 			}
+			continue
 		}
+		ctx.logf("phase %s done in %s", p.Name, time.Since(t0).Round(time.Millisecond))
 	}
 	if ctx.Report != nil {
 		findings.UniquifyIDs(ctx.Report)
+		ctx.logf("scan done %d findings", len(ctx.Report.Findings))
 	}
 	return first
 }

@@ -33,14 +33,35 @@ func TestScanJSONNonTTY(t *testing.T) {
 	t.Setenv("XDG_CACHE_HOME", dir)
 	cat := filepath.Join(dir, "c.yaml")
 	_ = os.WriteFile(cat, []byte("version: 1\nos: macos\n"), 0o644)
-	buf := &bytes.Buffer{}
-	g := &Global{Stdout: buf, Stderr: buf, Catalog: cat, Config: dir, IsTTY: false}
+	out := &bytes.Buffer{}
+	errb := &bytes.Buffer{}
+	g := &Global{Stdout: out, Stderr: errb, Catalog: cat, Config: dir, IsTTY: false}
 	err := runScan(g, []string{"--quick", "--json"})
-	if err != nil && buf.Len() == 0 {
+	if err != nil && out.Len() == 0 {
 		t.Log(err)
 		return
 	}
-	if buf.Len() > 0 && !strings.Contains(buf.String(), "generated_at") {
-		t.Fatal(buf.String())
+	if out.Len() > 0 && !strings.Contains(out.String(), "generated_at") {
+		t.Fatal(out.String())
+	}
+	if strings.Contains(out.String(), "freedisk:") {
+		t.Fatal("progress leaked onto JSON stdout", out.String())
+	}
+}
+
+func TestScanQuietNoProgress(t *testing.T) {
+	dir := t.TempDir()
+	t.Setenv("XDG_CACHE_HOME", dir)
+	cat := filepath.Join(dir, "c.yaml")
+	_ = os.WriteFile(cat, []byte("version: 1\nos: macos\n"), 0o644)
+	out := &bytes.Buffer{}
+	errb := &bytes.Buffer{}
+	g := &Global{Stdout: out, Stderr: errb, Catalog: cat, Config: dir, IsTTY: false}
+	if err := runScan(g, []string{"--quick", "--json", "--quiet"}); err != nil && out.Len() == 0 {
+		t.Log(err)
+		return
+	}
+	if strings.Contains(errb.String(), "freedisk:") {
+		t.Fatal("quiet still logged", errb.String())
 	}
 }

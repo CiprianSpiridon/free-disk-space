@@ -33,6 +33,48 @@ func idleDays(lastUsed string) int {
 	return d
 }
 
+func mdCell(s string) string {
+	s = strings.ReplaceAll(s, "|", "\\|")
+	s = strings.ReplaceAll(s, "\n", " ")
+	return s
+}
+
+func shellQuote(s string) string {
+	if s == "" {
+		return "''"
+	}
+	if isShellSafe(s) {
+		return s
+	}
+	return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'"
+}
+
+func isShellSafe(s string) bool {
+	for i := 0; i < len(s); i++ {
+		c := s[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') {
+			continue
+		}
+		switch c {
+		case '/', '.', '-', '_', '=', '@', '+', ',', ':':
+			continue
+		default:
+			return false
+		}
+	}
+	return true
+}
+
+func reclaimCmd(f findings.Finding) string {
+	if f.Reclaim != nil && strings.TrimSpace(f.Reclaim.Cmd) != "" {
+		return f.Reclaim.Cmd
+	}
+	if f.Path != "" {
+		return "rm -rf " + shellQuote(f.Path)
+	}
+	return ""
+}
+
 func displayLast(s string) string {
 	if s == "" {
 		return "—"
@@ -104,19 +146,16 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 		fmt.Fprintf(w, "- Note: df / disagrees (sealed snapshot)\n")
 	}
 	fmt.Fprintf(w, "\n## Reclaimable (high confidence)\n\n")
-	fmt.Fprintf(w, "| bucket | size | last used | risk | command |\n| --- | --- | --- | --- | --- |\n")
+	fmt.Fprintf(w, "| id | path | size | last used | risk | command |\n| --- | --- | --- | --- | --- | --- |\n")
 	for _, f := range r.Findings {
 		if !highConfidence(f, opt) {
 			continue
 		}
-		cmd := ""
-		if f.Reclaim != nil {
-			cmd = f.Reclaim.Cmd
-		}
-		fmt.Fprintf(w, "| %s | %s | %s | %s | `%s` |\n", f.ID, humanBytes(f.Bytes), displayLast(f.LastUsed), f.Risk, cmd)
+		fmt.Fprintf(w, "| `%s` | `%s` | %s | %s | %s | `%s` |\n",
+			mdCell(f.ID), mdCell(f.Path), humanBytes(f.Bytes), displayLast(f.LastUsed), f.Risk, mdCell(reclaimCmd(f)))
 	}
 	fmt.Fprintf(w, "\n## Ask first\n\n")
-	fmt.Fprintf(w, "| bucket | size | last used | why |\n| --- | --- | --- | --- |\n")
+	fmt.Fprintf(w, "| id | path | size | last used | why | command |\n| --- | --- | --- | --- | --- | --- |\n")
 	for _, f := range r.Findings {
 		if f.Risk == findings.RiskKeep || f.Risk == findings.RiskNever {
 			continue
@@ -124,7 +163,8 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 		if highConfidence(f, opt) {
 			continue
 		}
-		fmt.Fprintf(w, "| %s | %s | %s | %s |\n", f.ID, humanBytes(f.Bytes), displayLast(f.LastUsed), f.Why)
+		fmt.Fprintf(w, "| `%s` | `%s` | %s | %s | %s | `%s` |\n",
+			mdCell(f.ID), mdCell(f.Path), humanBytes(f.Bytes), displayLast(f.LastUsed), mdCell(f.Why), mdCell(reclaimCmd(f)))
 	}
 	fmt.Fprintf(w, "\n## Keep / not reclaim\n")
 	for _, f := range r.Findings {

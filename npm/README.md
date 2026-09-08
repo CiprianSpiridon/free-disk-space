@@ -1,43 +1,33 @@
-# free-disk-space
+# fdsk
 
 macOS disk-audit CLI. **Scan never deletes.**
 
-The npm package is `free-disk-space` (same as the GitHub repo). The
-command is `freedisk`.
+npm package: **`fdsk`**. Command: **`freedisk`**.
 
-This package is a thin wrapper. It does not compile Go. `postinstall`
-downloads `freedisk-darwin-arm64` or `freedisk-darwin-amd64` from
+Thin wrapper: `postinstall` downloads `freedisk-darwin-arm64` or
+`freedisk-darwin-amd64` from
 [GitHub Releases](https://github.com/CiprianSpiridon/free-disk-space/releases).
 
 ```bash
-npm i -g free-disk-space
+npx fdsk version
+npx fdsk scan --quick --json
+
+npm i -g fdsk
 freedisk version
-freedisk scan --quick
 ```
 
-Or without installing globally:
+macOS + Node 18+. Not `npx freedisk` (different package).
 
-```bash
-npx free-disk-space version
-npx free-disk-space scan --quick --json
-```
-
-Do not run `npx freedisk` — that is a different package.
-
-Requires macOS (Apple Silicon or Intel) and Node.js 18+. Linux and Windows
-installs are refused.
-
-If the GitHub Release for this version does not exist yet:
+If the GitHub Release is missing:
 
 ```bash
 go install github.com/CiprianSpiridon/free-disk-space/cmd/freedisk@latest
 ```
 
-Scan never deletes. The only mutate path is `freedisk delete <id>`. There is
-no `delete --all`. Non-TTY delete requires `--yes`.
+Scan never deletes. Only `freedisk delete <id>`. No `delete --all`.
 
 ```bash
-npm uninstall -g free-disk-space
+npm uninstall -g fdsk
 ```
 
-MIT. Source: [CiprianSpiridon/free-disk-space](https://github.com/CiprianSpiridon/free-disk-space).
+MIT. [CiprianSpiridon/free-disk-space](https://github.com/CiprianSpiridon/free-disk-space).

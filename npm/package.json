@@ -1,5 +1,5 @@
 {
-  "name": "free-disk-space",
+  "name": "fdsk",
   "version": "0.1.0",
   "description": "macOS disk-audit CLI. Scan never deletes; only freedisk delete <id> removes files.",
   "license": "MIT",
@@ -16,7 +16,7 @@
   },
   "bin": {
     "freedisk": "bin/freedisk",
-    "free-disk-space": "bin/freedisk"
+    "fdsk": "bin/freedisk"
   },
   "scripts": {
     "postinstall": "node scripts/install.js",

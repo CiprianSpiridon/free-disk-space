@@ -1,4 +1,4 @@
-# npm distribution (`free-disk-space`)
+# npm distribution (`fdsk`)
 
 Publish root is the **`npm/`** directory so `go test` and the Go module stay
 clean. The tarball is a wrapper: a `freedisk` bin shim plus `postinstall`
@@ -10,9 +10,10 @@ GitHub Release **v0.1.0** already has the darwin binaries. Publish from
 
 ## Package name
 
-The registry package is **`free-disk-space`** (same as the GitHub repo).
-The installed command is **`freedisk`**. The name `freedisk` on npmjs is
-an unrelated `df -h` helper; we do not use `freedisk-cli`.
+Registry: **`fdsk`**. Command: **`freedisk`**. `npx fdsk`.
+
+`freedisk` and `free-disk-space` are blocked or squatted on npmjs.
+Do not use `freedisk-cli`.
 
 Keep `npm/package.json` `version` in sync with `internal/version.Version`
 (currently `0.1.0`).
@@ -20,19 +21,14 @@ Keep `npm/package.json` `version` in sync with `internal/version.Version`
 ## Users (after GitHub Release **and** npm publish)
 
 ```bash
-npm i -g free-disk-space
+npx fdsk version
+npx fdsk scan --quick --json
+
+npm i -g fdsk
 freedisk version
 ```
 
-Without a global install:
-
-```bash
-npx free-disk-space version
-npx free-disk-space scan --quick --json
-```
-
-`npx freedisk` is the **wrong** package (unrelated `df` helper). Always use
-`npx free-disk-space` (package name) or `npx -p free-disk-space freedisk`.
+`npx freedisk` is a different package. Use `npx fdsk`.
 
 Requires:
 
@@ -55,7 +51,7 @@ the registry yet, and there is no GitHub Release tarball yet.
 Uninstall:
 
 ```bash
-npm uninstall -g free-disk-space
+npm uninstall -g fdsk
 ```
 
 Scan never deletes. Only `freedisk delete <id>` removes files, and only for
@@ -78,7 +74,7 @@ These names match the release workflow (`freedisk-darwin-arm64` /
 
 If `checksums.txt` (or `SHA256SUMS`) is on the release, the digest is
 verified. The file is chmod `0755` into `vendor/freedisk` (next to this
-package, i.e. `node_modules/free-disk-space/vendor/freedisk`).
+package, i.e. `node_modules/fdsk/vendor/freedisk`).
 
 Optional: `FREEDISK_RELEASE_BASE` overrides the download prefix (local
 testing).
@@ -96,9 +92,9 @@ darwin binaries. Do **not** `npm publish` before those assets exist.
    - `checksums.txt`
 4. From repo root: `cd npm`
 5. `npm pack` and inspect the tarball (must **not** contain Go sources)
-6. `npm login` (npmjs.com account with permission to publish `free-disk-space`)
-7. `npm publish --access public`
-8. Smoke: `npm i -g free-disk-space && freedisk version` on a Mac (Node 18+)
+6. `npm login`
+7. `cd npm && npm publish --access public`
+8. Smoke: `npx fdsk version` on a Mac (Node 18+)
 
 Bump `npm/package.json` `version` whenever `internal/version.Version` bumps,
 and publish a matching GitHub Release first.
@@ -110,7 +106,7 @@ From `npm/`:
 ```bash
 npm test
 npm pack
-tar tzf free-disk-space-0.1.0.tgz
+tar tzf fdsk-0.1.0.tgz
 ```
 
 Expected entries (plus npm’s `package/` prefix):
@@ -135,7 +131,7 @@ same asset names).
 
 | Path | Role |
 | --- | --- |
-| `npm/package.json` | publish manifest (`free-disk-space` 0.1.0) |
+| `npm/package.json` | publish manifest (`fdsk` 0.1.0) |
 | `npm/bin/freedisk` | shim; execs `vendor/freedisk` |
 | `npm/scripts/install.js` | `postinstall` download + checksum |
 | `npm/README.md` | registry listing |

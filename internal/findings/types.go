@@ -77,6 +77,7 @@ type Volume struct {
 // Report is the scan document.
 type Report struct {
 	GeneratedAt string    `json:"generated_at"`
+	Mode        string    `json:"mode,omitempty"`
 	Host        Host      `json:"host"`
 	Volume      Volume    `json:"volume"`
 	Unreadable  []string  `json:"unreadable,omitempty"`

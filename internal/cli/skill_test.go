@@ -21,6 +21,9 @@ func TestSkillPrint(t *testing.T) {
 	if !strings.Contains(s, "MUST update the catalog") {
 		t.Fatal("skill must tell agents to update the catalog")
 	}
+	if !strings.Contains(s, "history show") {
+		t.Fatal("skill must document historic reports")
+	}
 }
 
 func TestSkillInstallAndList(t *testing.T) {

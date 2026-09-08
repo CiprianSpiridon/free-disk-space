@@ -6,4 +6,4 @@ package version
 //	-X github.com/CiprianSpiridon/free-disk-space/internal/version.Version={{.Version}}
 //
 // Default is for `go run` / builds without ldflags.
-var Version = "0.1.0"
+var Version = "0.2.0"

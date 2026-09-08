@@ -7,6 +7,8 @@ go run ./cmd/freedisk help
 go run ./cmd/freedisk scan --json
 go run ./cmd/freedisk scan --quick --json
 go run ./cmd/freedisk scan --dev --json
+go run ./cmd/freedisk history
+go run ./cmd/freedisk history show latest
 ```
 
 Scan duration on a full developer Mac: `--quick` 1-5 min (up to ~10),

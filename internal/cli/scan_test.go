@@ -50,6 +50,17 @@ func TestScanJSONNonTTY(t *testing.T) {
 	}
 }
 
+func TestScanWritesHistory(t *testing.T) {
+	b, err := os.ReadFile("scan.go")
+	if err != nil {
+		t.Fatal(err)
+	}
+	s := string(b)
+	if !strings.Contains(s, "WriteHistory") || !strings.Contains(s, "Report.Mode") {
+		t.Fatal("scan must archive a timestamped report with mode")
+	}
+}
+
 func TestScanQuietNoProgress(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)

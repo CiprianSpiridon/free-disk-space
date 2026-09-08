@@ -5,8 +5,8 @@ clean. The tarball is a wrapper: a `freedisk` bin shim plus `postinstall`
 that downloads the darwin binary. It does not recompile Go. It does not
 include `cmd/`, `internal/`, or other `.go` sources.
 
-GitHub Release **v0.1.0** already has the darwin binaries. Publish from
-`npm/` after `npm login`.
+GitHub Release binaries must match this package version. Publish from
+`npm/` after `npm login`, **after** tag `v0.2.0` has darwin assets.
 
 ## Package name
 
@@ -17,7 +17,7 @@ partition tool — do not use it. npm also rejected `freedisk`,
 `free-disk-space`, and `fdsk`.
 
 Keep `npm/package.json` `version` in sync with `internal/version.Version`
-(currently `0.1.0`).
+(currently `0.2.0`).
 
 ## Users (after GitHub Release **and** npm publish)
 
@@ -40,7 +40,7 @@ Requires:
 `package.json` sets `"os": ["darwin"]` and `"cpu": ["x64", "arm64"]`.
 `postinstall` also refuses `linux` / `win32` with **macOS only**.
 
-Until a `v0.1.0` GitHub Release exists, npm install will 404 and print:
+Until a matching GitHub Release exists, npm install will 404 and print:
 
 ```text
 No GitHub release for this version. Use: go install github.com/CiprianSpiridon/free-disk-space/cmd/freedisk@latest
@@ -82,20 +82,22 @@ testing).
 
 ## Operators: publish checklist
 
-Do this **after** `v0.1.0` is tagged and the GitHub Action has attached
+Do this **after** `v0.2.0` is tagged and the GitHub Action has attached
 darwin binaries. Do **not** `npm publish` before those assets exist.
+`npx fspace` downloads `v${version}` from GitHub Releases.
 
 1. `go test ./...`
-2. Tag and push: `git tag v0.1.0 && git push origin v0.1.0`
+2. Commit, tag, and push: `git tag v0.2.0 && git push origin v0.2.0`
 3. Confirm the GitHub Release has:
    - `freedisk-darwin-arm64`
    - `freedisk-darwin-amd64`
    - `checksums.txt`
 4. From repo root: `cd npm`
 5. `npm pack` and inspect the tarball (must **not** contain Go sources)
-6. `npm login`
+6. `npm login` (browser) if `npm whoami` is not you
 7. `cd npm && npm publish --access public`
-8. Smoke: `npx fspace version` on a Mac (Node 18+)
+   Do **not** `npm publish --prefix npm` from the repo root (ENOENT).
+8. Smoke: `npx fspace version` on a Mac (Node 18+) — should print `0.2.0`
 
 Bump `npm/package.json` `version` whenever `internal/version.Version` bumps,
 and publish a matching GitHub Release first.
@@ -107,7 +109,7 @@ From `npm/`:
 ```bash
 npm test
 npm pack
-tar tzf fspace-0.1.0.tgz
+tar tzf fspace-0.2.0.tgz
 ```
 
 Expected entries (plus npm’s `package/` prefix):
@@ -126,13 +128,13 @@ Release (or `FREEDISK_RELEASE_BASE` pointing at a local HTTP tree with the
 same asset names).
 
 `npm install` inside `npm/` will run `postinstall` and fail with the
-`go install` fallback until `v0.1.0` exists. That is expected.
+`go install` fallback until the matching GitHub Release exists. That is expected.
 
 ## Layout
 
 | Path | Role |
 | --- | --- |
-| `npm/package.json` | publish manifest (`fspace` 0.1.0) |
+| `npm/package.json` | publish manifest (`fspace` 0.2.0) |
 | `npm/bin/freedisk` | shim; execs `vendor/freedisk` |
 | `npm/scripts/install.js` | `postinstall` download + checksum |
 | `npm/README.md` | registry listing |

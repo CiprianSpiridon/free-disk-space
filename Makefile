@@ -2,10 +2,10 @@
 #
 # Releases stamp Version with:
 #   -X github.com/CiprianSpiridon/free-disk-space/internal/version.Version={{.Version}}
-# `make build` does the same from `git describe` (v prefix stripped) or 0.1.0.
+# `make build` does the same from `git describe` (v prefix stripped) or 0.2.0.
 
 MODULE  := github.com/CiprianSpiridon/free-disk-space
-VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.1.0)
+VERSION ?= $(shell git describe --tags --always --dirty 2>/dev/null || echo 0.2.0)
 VERSION_NOPREFIX := $(patsubst v%,%,$(VERSION))
 LDFLAGS := -X $(MODULE)/internal/version.Version=$(VERSION_NOPREFIX)
 

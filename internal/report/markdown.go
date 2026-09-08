@@ -137,6 +137,12 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 		pct = 100 * float64(v.InUseBytes) / float64(v.ContainerBytes)
 	}
 	fmt.Fprintf(w, "## Disk\n")
+	if r.Mode != "" {
+		fmt.Fprintf(w, "- Mode: %s\n", r.Mode)
+	}
+	if r.GeneratedAt != "" {
+		fmt.Fprintf(w, "- Generated: %s\n", r.GeneratedAt)
+	}
 	fmt.Fprintf(w, "- Container: %s in use / %s free (%.0f%%)\n",
 		humanBytes(v.InUseBytes), humanBytes(v.FreeBytes), pct)
 	if v.DataVolumeUsedBytes > 0 {

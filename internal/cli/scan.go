@@ -33,6 +33,8 @@ Markdown tables list id, full path, last used, and a reclaim command
 (catalog command or rm -rf PATH).
 
 scan never deletes. catalog add --scans and scans disable change what runs.
+Each scan also archives $XDG_CACHE_HOME/freedisk/history/YYYYMMDDTHHMMSSZ-MODE.json
+(display-only; why/delete still use last-scan.json).
 `
 
 func runScan(g *Global, args []string) error {
@@ -89,8 +91,12 @@ func runScan(g *Global, args []string) error {
 	if err := scan.Run(ctx); err != nil {
 		return err
 	}
+	ctx.Report.Mode = mode
 	if err := scan.WriteLastScan(scan.LastScanPath(), *ctx.Report); err != nil {
 		return fmt.Errorf("write last-scan: %w", err)
+	}
+	if err := scan.WriteHistory(*ctx.Report); err != nil {
+		return fmt.Errorf("write history: %w", err)
 	}
 	if wantJSON(g) {
 		return report.JSON(g.Stdout, *ctx.Report)

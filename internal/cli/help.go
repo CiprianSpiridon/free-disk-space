@@ -45,6 +45,13 @@ Scan types:
   freedisk scans disable artifacts
   freedisk scans add rust --types artifacts,worktrees
 
+Historic reports (timestamped copies; display only — not used by delete):
+  freedisk history
+  freedisk history list [--json] [--type quick]
+  freedisk history show latest
+  freedisk history show 1
+  Each scan writes $XDG_CACHE_HOME/freedisk/history/YYYYMMDDTHHMMSSZ-MODE.json
+
 Skill (install into every local agent CLI):
   freedisk skill
   freedisk skill install

@@ -11,7 +11,7 @@ It is not a cleaner. It is not CleanMyMac. It is not
 [Mole](https://github.com/tw93/mole). Nothing is removed unless a human
 names finding ids and runs `freedisk delete`.
 
-**0.1.0** · MIT · macOS / APFS only · Go 1.22+ ·
+**0.2.0** · MIT · macOS / APFS only · Go 1.22+ ·
 [`github.com/CiprianSpiridon/free-disk-space`](https://github.com/CiprianSpiridon/free-disk-space)
 
 ```
@@ -63,7 +63,7 @@ From a checkout:
 ```bash
 go install ./cmd/freedisk
 ln -sfn "$(go env GOPATH)/bin/freedisk" "$HOME/bin/freedisk"   # optional if ~/bin is on PATH
-freedisk version   # 0.1.0
+freedisk version   # 0.2.0
 ```
 
 From GitHub (once GOPROXY can see the module):
@@ -95,6 +95,8 @@ freedisk scan --quick          # volume + catalog + home depth-1 + tmp
 freedisk scan --dev            # + artifacts + worktrees + docker/brew APIs
 freedisk scan                  # full (default): + drill + simctl + android
 freedisk why                   # top reclaimable from last scan
+freedisk history               # timestamped past scans (quick/dev/full)
+freedisk history show latest   # reprint one archived report
 freedisk delete <id> [--yes]   # only mutate path; human-named ids
 freedisk catalog add PATH --scans quick,dev   # optional overlay
 freedisk scans disable artifacts
@@ -211,7 +213,11 @@ not use that path. Re-scan after changes.
 Exit codes: `0` report, `2` usage, `3` unknown id.
 
 Last scan lives at `$XDG_CACHE_HOME/freedisk/last-scan.json` (else
-`~/.cache/freedisk/last-scan.json`). `why` and `delete` read that file.
+`~/.cache/freedisk/last-scan.json`). `why` and `delete` read that file
+(24h). Every scan also writes a timestamped copy under
+`$XDG_CACHE_HOME/freedisk/history/YYYYMMDDTHHMMSSZ-MODE.json`. List and
+reprint with `freedisk history` / `freedisk history show`. History is
+display-only and is never used to delete.
 
 ---
 

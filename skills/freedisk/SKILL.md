@@ -21,6 +21,8 @@ freedisk scan --quick --json
 freedisk scan --dev --json
 freedisk scan --json
 freedisk why --json
+freedisk history list --json
+freedisk history show latest --json
 ```
 
 ## How long to wait
@@ -96,6 +98,22 @@ Never `--all`. Never automatic. Agents must not delete unless the human named th
 Refused: `keep`/`never`, git-tracked, in-flight worktrees, busy npm/pnpm/yarn/cargo/uv/docker, tmp roots, `/System`, `~/.cargo` as a whole, `/`, `$HOME`, whole Downloads/Desktop/Documents/Library, `/Library/Developer`, `/opt/homebrew`, iCloud `Mobile Documents`.
 
 Stale last-scan (>24h) cannot be deleted against. Re-scan first.
+
+## Historic reports
+
+Each scan archives a timestamped copy:
+`$XDG_CACHE_HOME/freedisk/history/YYYYMMDDTHHMMSSZ-MODE.json`
+(else `~/.cache/freedisk/history/`). Mode is `quick`, `dev`, `full`, or a
+user overlay mode. `why` / `delete` still use `last-scan.json` only.
+
+```bash
+freedisk history
+freedisk history list --json --type quick
+freedisk history show latest
+freedisk history show 1
+```
+
+History is display-only. Do not delete from a historic report.
 
 ## If `freedisk` is missing
 

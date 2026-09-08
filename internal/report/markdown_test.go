@@ -9,6 +9,20 @@ import (
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 )
 
+func TestMarkdownModeAndGenerated(t *testing.T) {
+	r := findings.NewReport("/Users/x")
+	r.Mode = "quick"
+	r.GeneratedAt = "2026-09-08T08:51:00Z"
+	var buf bytes.Buffer
+	if err := Markdown(&buf, r, Options{}); err != nil {
+		t.Fatal(err)
+	}
+	s := buf.String()
+	if !strings.Contains(s, "Mode: quick") || !strings.Contains(s, "Generated: 2026-09-08T08:51:00Z") {
+		t.Fatal(s)
+	}
+}
+
 func TestMarkdownNotPresent(t *testing.T) {
 	r := findings.NewReport("/Users/x")
 	r.NotPresent = []string{"conda"}

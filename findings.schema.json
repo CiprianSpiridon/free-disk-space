@@ -8,6 +8,10 @@
   "additionalProperties": false,
   "properties": {
     "generated_at": { "type": "string", "format": "date-time" },
+    "mode": {
+      "type": "string",
+      "description": "Scan mode that produced this report (quick, dev, full, or a user overlay mode)"
+    },
     "host": {
       "type": "object",
       "required": ["os", "home"],

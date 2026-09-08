@@ -55,9 +55,9 @@ delete ids were named.
 
 ## Install
 
-macOS only. Install with Go. Homebrew and npm are prepared but not
-published yet ([docs/homebrew.md](docs/homebrew.md),
-[docs/npm.md](docs/npm.md)).
+macOS only. Install with Go. Homebrew tap:
+[docs/homebrew.md](docs/homebrew.md). npm package `free-disk-space`
+(command `freedisk`): [docs/npm.md](docs/npm.md).
 
 From a checkout:
 

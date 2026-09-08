@@ -5,8 +5,8 @@ clean. The tarball is a wrapper: a `freedisk` bin shim plus `postinstall`
 that downloads the darwin binary. It does not recompile Go. It does not
 include `cmd/`, `internal/`, or other `.go` sources.
 
-The package is **not** on npmjs.com until a human publishes it. Do not claim
-it is already published.
+GitHub Release **v0.1.0** already has the darwin binaries. Publish from
+`npm/` after `npm login`.
 
 ## Package name
 
@@ -23,6 +23,16 @@ Keep `npm/package.json` `version` in sync with `internal/version.Version`
 npm i -g free-disk-space
 freedisk version
 ```
+
+Without a global install:
+
+```bash
+npx free-disk-space version
+npx free-disk-space scan --quick --json
+```
+
+`npx freedisk` is the **wrong** package (unrelated `df` helper). Always use
+`npx free-disk-space` (package name) or `npx -p free-disk-space freedisk`.
 
 Requires:
 

@@ -15,7 +15,8 @@
     "node": ">=18"
   },
   "bin": {
-    "freedisk": "bin/freedisk"
+    "freedisk": "bin/freedisk",
+    "free-disk-space": "bin/freedisk"
   },
   "scripts": {
     "postinstall": "node scripts/install.js",

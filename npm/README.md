@@ -15,6 +15,15 @@ freedisk version
 freedisk scan --quick
 ```
 
+Or without installing globally:
+
+```bash
+npx free-disk-space version
+npx free-disk-space scan --quick --json
+```
+
+Do not run `npx freedisk` — that is a different package.
+
 Requires macOS (Apple Silicon or Intel) and Node.js 18+. Linux and Windows
 installs are refused.
 

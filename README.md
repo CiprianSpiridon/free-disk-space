@@ -56,7 +56,7 @@ delete ids were named.
 ## Install
 
 macOS only. Install with Go. Homebrew: [docs/homebrew.md](docs/homebrew.md).
-npm: `npx fdsk` (command `freedisk`) — [docs/npm.md](docs/npm.md).
+npm: `npx fspace` (command `freedisk`) — [docs/npm.md](docs/npm.md).
 
 From a checkout:
 

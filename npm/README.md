@@ -1,18 +1,14 @@
-# fdsk
+# fspace
 
 macOS disk-audit CLI. **Scan never deletes.**
 
-npm package: **`fdsk`**. Command: **`freedisk`**.
-
-Thin wrapper: `postinstall` downloads `freedisk-darwin-arm64` or
-`freedisk-darwin-amd64` from
-[GitHub Releases](https://github.com/CiprianSpiridon/free-disk-space/releases).
+npm: **`fspace`**. Command: **`freedisk`**.
 
 ```bash
-npx fdsk version
-npx fdsk scan --quick --json
+npx fspace version
+npx fspace scan --quick --json
 
-npm i -g fdsk
+npm i -g fspace
 freedisk version
 ```
 
@@ -24,10 +20,10 @@ If the GitHub Release is missing:
 go install github.com/CiprianSpiridon/free-disk-space/cmd/freedisk@latest
 ```
 
-Scan never deletes. Only `freedisk delete <id>`. No `delete --all`.
+Scan never deletes. Only `freedisk delete <id>`.
 
 ```bash
-npm uninstall -g fdsk
+npm uninstall -g fspace
 ```
 
 MIT. [CiprianSpiridon/free-disk-space](https://github.com/CiprianSpiridon/free-disk-space).

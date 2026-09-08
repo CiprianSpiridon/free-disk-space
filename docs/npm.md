@@ -1,4 +1,4 @@
-# npm distribution (`fdsk`)
+# npm distribution (`fspace`)
 
 Publish root is the **`npm/`** directory so `go test` and the Go module stay
 clean. The tarball is a wrapper: a `freedisk` bin shim plus `postinstall`
@@ -10,10 +10,11 @@ GitHub Release **v0.1.0** already has the darwin binaries. Publish from
 
 ## Package name
 
-Registry: **`fdsk`**. Command: **`freedisk`**. `npx fdsk`.
+Registry: **`fspace`**. Command: **`freedisk`**. `npx fspace`.
 
-`freedisk` and `free-disk-space` are blocked or squatted on npmjs.
-Do not use `freedisk-cli`.
+`freespace` is taken. `fdisk` is unpublished on npm and is the Unix
+partition tool — do not use it. npm also rejected `freedisk`,
+`free-disk-space`, and `fdsk`.
 
 Keep `npm/package.json` `version` in sync with `internal/version.Version`
 (currently `0.1.0`).
@@ -21,14 +22,14 @@ Keep `npm/package.json` `version` in sync with `internal/version.Version`
 ## Users (after GitHub Release **and** npm publish)
 
 ```bash
-npx fdsk version
-npx fdsk scan --quick --json
+npx fspace version
+npx fspace scan --quick --json
 
-npm i -g fdsk
+npm i -g fspace
 freedisk version
 ```
 
-`npx freedisk` is a different package. Use `npx fdsk`.
+`npx freedisk` is a different package. Use `npx fspace`.
 
 Requires:
 
@@ -51,7 +52,7 @@ the registry yet, and there is no GitHub Release tarball yet.
 Uninstall:
 
 ```bash
-npm uninstall -g fdsk
+npm uninstall -g fspace
 ```
 
 Scan never deletes. Only `freedisk delete <id>` removes files, and only for
@@ -74,7 +75,7 @@ These names match the release workflow (`freedisk-darwin-arm64` /
 
 If `checksums.txt` (or `SHA256SUMS`) is on the release, the digest is
 verified. The file is chmod `0755` into `vendor/freedisk` (next to this
-package, i.e. `node_modules/fdsk/vendor/freedisk`).
+package, i.e. `node_modules/fspace/vendor/freedisk`).
 
 Optional: `FREEDISK_RELEASE_BASE` overrides the download prefix (local
 testing).
@@ -94,7 +95,7 @@ darwin binaries. Do **not** `npm publish` before those assets exist.
 5. `npm pack` and inspect the tarball (must **not** contain Go sources)
 6. `npm login`
 7. `cd npm && npm publish --access public`
-8. Smoke: `npx fdsk version` on a Mac (Node 18+)
+8. Smoke: `npx fspace version` on a Mac (Node 18+)
 
 Bump `npm/package.json` `version` whenever `internal/version.Version` bumps,
 and publish a matching GitHub Release first.
@@ -106,7 +107,7 @@ From `npm/`:
 ```bash
 npm test
 npm pack
-tar tzf fdsk-0.1.0.tgz
+tar tzf fspace-0.1.0.tgz
 ```
 
 Expected entries (plus npm’s `package/` prefix):
@@ -131,7 +132,7 @@ same asset names).
 
 | Path | Role |
 | --- | --- |
-| `npm/package.json` | publish manifest (`fdsk` 0.1.0) |
+| `npm/package.json` | publish manifest (`fspace` 0.1.0) |
 | `npm/bin/freedisk` | shim; execs `vendor/freedisk` |
 | `npm/scripts/install.js` | `postinstall` download + checksum |
 | `npm/README.md` | registry listing |

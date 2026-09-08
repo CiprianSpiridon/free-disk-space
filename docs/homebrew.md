@@ -1,7 +1,7 @@
 # Homebrew tap for freedisk
 
-freedisk is a macOS-only CLI. It is **not** in homebrew-core (too early at
-v0.1.0). Install from a personal tap.
+freedisk is a macOS-only CLI. It is **not** in homebrew-core. Install from a
+personal tap. Current stable formula: **0.2.0**.
 
 The formula in this repo (`Formula/freedisk.rb`) is the template. The tap is a
 **separate** GitHub repo that copies that file. This project does not ship
@@ -139,15 +139,14 @@ freedisk help
 ```
 
 `help` should mention that scan never deletes. `version` should match the
-formula version (`HEAD` on a HEAD install; `0.1.0` after the stable URL is
-filled).
+formula version (`HEAD` on a HEAD install; `0.2.0` on the current stable URL).
 
 ## Release checklist
 
 - [ ] `go test ./...` passes
-- [ ] `make build` produces `bin/freedisk` with Version from git describe or 0.1.0
+- [ ] `make build` produces `bin/freedisk` with Version from git describe or 0.2.0
 - [ ] `ruby -c Formula/freedisk.rb` passes
-- [ ] Tag `v0.1.0` and `git push --tags` (GitHub Release + darwin binaries)
+- [ ] Tag `v0.2.0` and `git push --tags` (GitHub Release + darwin binaries)
 - [ ] `shasum -a 256` of the **source** tarball (not the darwin binaries)
 - [ ] Uncomment `url` / `sha256` in this repo's `Formula/freedisk.rb`
 - [ ] Copy the same change into `CiprianSpiridon/homebrew-freedisk`

@@ -2,16 +2,14 @@
 
 # Template for the personal tap CiprianSpiridon/homebrew-freedisk.
 # Copy this file to that repo as Formula/freedisk.rb.
-# Until a tagged release exists:
-#   brew install --HEAD CiprianSpiridon/freedisk/freedisk
-# After v0.1.0: uncomment url/sha256 (see comments below) and bump in the tap.
+# Keep url/sha256 in sync with the latest GitHub source tag.
 
 # macOS disk-audit CLI (scan never deletes).
 class Freedisk < Formula
   desc "macOS disk-audit CLI; scan never deletes"
   homepage "https://github.com/CiprianSpiridon/free-disk-space"
-  url "https://github.com/CiprianSpiridon/free-disk-space/archive/refs/tags/v0.1.0.tar.gz"
-  sha256 "f20b6eda7fe76622418bbc9d69d24636b79c5e1e25366f68428078ab2f195c1e"
+  url "https://github.com/CiprianSpiridon/free-disk-space/archive/refs/tags/v0.2.0.tar.gz"
+  sha256 "f12d9dd4525997876f0f463f672c5b3931a06caf605c506972cd882672b973d2"
   license "MIT"
   head "https://github.com/CiprianSpiridon/free-disk-space.git", branch: "main"
 

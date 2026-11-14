@@ -10,7 +10,6 @@ import (
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
-	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
 // GitWorktreeList is injected in tests.
@@ -198,9 +197,12 @@ func emitOneWorktree(ctx *Context, p, kind string, idleDays, inflightHours, coun
 			}
 		}
 	}
-	sz := size.Of(p)
+	sz := ctx.measure(p)
 	noteUnreadable(ctx.Report, sz.Unreadable...)
-	newest := newestMtime(p)
+	newest := sz.Newest
+	if newest.IsZero() {
+		newest = newestMtime(p)
+	}
 	risk := findings.RiskAsk
 	why := kind + " worktrees"
 	if !newest.IsZero() {
@@ -214,8 +216,8 @@ func emitOneWorktree(ctx *Context, p, kind string, idleDays, inflightHours, coun
 		}
 	}
 	ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{
-		ID: findings.IDSlug("worktree-"+kind, p), Path: p, Bytes: sz.Allocated,
-		Category: "worktree-" + kind, Risk: risk, Why: why, Count: count,
+		ID: findings.IDSlug("worktree-"+kind, p), Path: p, Bytes: sz.Allocated, ReclaimBytes: privateBytes(sz),
+		Category: "worktree-" + kind, Risk: risk, Why: why, Count: count, LastUsed: measuredLast(sz, p),
 		Reclaim: &findings.Reclaim{Cmd: worktreeReclaim(kind, p)},
 	})
 }

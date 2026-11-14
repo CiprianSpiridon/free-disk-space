@@ -12,6 +12,40 @@
       "type": "string",
       "description": "Scan mode that produced this report (quick, dev, full, or a user overlay mode)"
     },
+    "reclaim_total": {
+      "type": "object",
+      "required": ["bytes", "targets", "unknown", "basis", "known_private_bytes"],
+      "properties": {
+        "bytes": { "type": ["integer", "null"], "minimum": 0, "description": "Minimum private bytes across eligible leaf targets; null if any target lacks private-byte metadata." },
+        "targets": { "type": "integer", "minimum": 0 },
+        "unknown": { "type": "integer", "minimum": 0 },
+        "known_private_bytes": { "type": "integer", "minimum": 0 },
+        "basis": { "type": "string" }
+      }
+    },
+    "skipped_mounts": { "type": "array", "items": { "type": "string" }, "description": "Mounted filesystems excluded from host directory totals." },
+    "catalog_advice": {
+      "type": "object",
+      "required": ["can_update_overlay", "overlay_path", "message", "suggestions"],
+      "properties": {
+        "can_update_overlay": { "type": "boolean" },
+        "overlay_path": { "type": "string" },
+        "message": { "type": "string" },
+        "suggestions": {
+          "type": "array",
+          "items": {
+            "type": "object",
+            "required": ["path", "scans", "reason", "command"],
+            "properties": {
+              "path": { "type": "string" },
+              "scans": { "type": "array", "items": { "type": "string" } },
+              "reason": { "type": "string" },
+              "command": { "type": "string" }
+            }
+          }
+        }
+      }
+    },
     "host": {
       "type": "object",
       "required": ["os", "home"],
@@ -26,6 +60,8 @@
       "description": "Ground truth from diskutil apfs list, not df /",
       "required": ["container_bytes", "in_use_bytes", "free_bytes"],
       "properties": {
+        "container_id": { "type": "string" },
+        "measured_at": { "type": "string", "format": "date-time" },
         "container_bytes": { "type": "integer", "minimum": 0 },
         "in_use_bytes": { "type": "integer", "minimum": 0 },
         "free_bytes": { "type": "integer", "minimum": 0 },
@@ -83,6 +119,10 @@
           "minimum": 0,
           "description": "st_size / ls -l; set for sparse VM files"
         },
+        "reclaim_bytes": { "type": "integer", "minimum": 0, "description": "Minimum filesystem-private bytes; shared extents and hard-linked data excluded." },
+        "size_basis": { "type": "string", "description": "Absent for allocated filesystem bytes; docker-image-layers or runtime-image-reported for service metadata." },
+        "summary_only": { "type": "boolean", "description": "Inventory only; cannot be deleted." },
+        "containers": { "type": "array", "items": { "type": "string" } },
         "category": { "type": "string" },
         "risk": { "$ref": "#/$defs/risk" },
         "last_used": {
@@ -99,6 +139,9 @@
           "description": "Proposed command only. Scan never executes this. delete requires explicit human-named ids.",
           "required": ["cmd"],
           "properties": {
+            "kind": { "type": "string", "enum": ["simulator-device", "simulator-runtime", "docker-image", "rustup-toolchain"] },
+            "target": { "type": "string" },
+            "roots": { "type": "array", "items": { "type": "string" } },
             "cmd": { "type": "string" },
             "dry_run": { "type": "string" }
           }

@@ -78,7 +78,10 @@ func runDrill(ctx *Context) error {
 				sz = size.OfFileInfo(info)
 			} else {
 				cctx, cancel := context.WithTimeout(context.Background(), drillChildTimeout)
-				sz = size.OfContext(cctx, p)
+				if ctx.Sizer == nil {
+					ctx.Sizer = size.NewScanner()
+				}
+				sz = ctx.Sizer.OfContext(cctx, p)
 				cancel()
 				if sz.Err != nil {
 					ctx.logf("skip %s: %v", p, sz.Err)
@@ -95,9 +98,9 @@ func runDrill(ctx *Context) error {
 			last := info.ModTime().UTC().Format("2006-01-02")
 			seen[p] = struct{}{}
 			extra = append(extra, findings.Finding{
-				ID:       findings.IDSlug(f.Category+"-child", p),
-				Path:     p,
-				Bytes:    sz.Allocated,
+				ID:    findings.IDSlug(f.Category+"-child", p),
+				Path:  p,
+				Bytes: sz.Allocated, ReclaimBytes: privateBytes(sz),
 				Category: f.Category,
 				Risk:     f.Risk,
 				LastUsed: last,

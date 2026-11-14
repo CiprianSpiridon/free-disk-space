@@ -1,7 +1,6 @@
 package scan
 
 import (
-	"strings"
 	"testing"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
@@ -10,6 +9,9 @@ import (
 
 func TestAPIsDockerAndBrew(t *testing.T) {
 	oldD, oldB := DockerSystemDF, BrewAutoremoveDry
+	oldInventory := DockerInventory
+	DockerInventory = func() ([]byte, []byte, error) { return []byte("[]"), []byte("[]"), nil }
+	defer func() { DockerInventory = oldInventory }()
 	DockerSystemDF = func() (string, error) {
 		return "TYPE  TOTAL  ACTIVE  SIZE  RECLAIMABLE\nImages  2  1  8GB  3GB\n", nil
 	}
@@ -26,8 +28,8 @@ func TestAPIsDockerAndBrew(t *testing.T) {
 	for _, f := range rep.Findings {
 		if f.ID == "docker-system-df" {
 			docker = true
-			if f.Reclaim == nil || !strings.Contains(f.Reclaim.Cmd, "docker system prune") {
-				t.Fatalf("%v", f.Reclaim)
+			if !f.SummaryOnly || f.Reclaim != nil {
+				t.Fatalf("Docker summary must not offer a broad prune: %+v", f)
 			}
 		}
 		if f.ID == "brew-autoremove" {
@@ -40,6 +42,9 @@ func TestAPIsDockerAndBrew(t *testing.T) {
 }
 
 func TestAPIsSkipEmptyBrew(t *testing.T) {
+	oldInventory := DockerInventory
+	DockerInventory = func() ([]byte, []byte, error) { return []byte("[]"), []byte("[]"), nil }
+	defer func() { DockerInventory = oldInventory }()
 	oldD, oldB := DockerSystemDF, BrewAutoremoveDry
 	DockerSystemDF = func() (string, error) { return "", nil }
 	BrewAutoremoveDry = func() (string, error) { return "Nothing to uninstall\n", nil }

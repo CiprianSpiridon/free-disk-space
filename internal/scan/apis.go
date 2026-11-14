@@ -37,6 +37,7 @@ var BrewAutoremoveDry = func() (string, error) {
 }
 
 func runAPIs(ctx *Context) error {
+	dockerImages(ctx)
 	dockerDF(ctx)
 	brewAutoremove(ctx)
 	return nil
@@ -54,15 +55,12 @@ func dockerDF(ctx *Context) {
 	}
 	why = strings.Join(lines, "; ")
 	ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{
-		ID:       "docker-system-df",
-		Path:     "docker",
-		Category: "docker-df",
-		Risk:     findings.RiskAsk,
-		Why:      why,
-		Reclaim: &findings.Reclaim{
-			Cmd:    "docker system prune -a --volumes",
-			DryRun: "docker system prune -a --volumes --dry-run",
-		},
+		ID:          "docker-system-df",
+		Path:        "docker",
+		Category:    "docker-df",
+		Risk:        findings.RiskAsk,
+		Why:         why,
+		SummaryOnly: true,
 	})
 }
 

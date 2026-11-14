@@ -38,8 +38,11 @@ func ParseRisk(s string) (Risk, error) {
 
 // Reclaim is a proposed command. Scan never executes it.
 type Reclaim struct {
-	Cmd    string `json:"cmd"`
-	DryRun string `json:"dry_run,omitempty"`
+	Cmd    string   `json:"cmd"`
+	DryRun string   `json:"dry_run,omitempty"`
+	Kind   string   `json:"kind,omitempty"`
+	Target string   `json:"target,omitempty"`
+	Roots  []string `json:"roots,omitempty"`
 }
 
 // Finding is one reclaimable or notable path.
@@ -48,12 +51,16 @@ type Finding struct {
 	Path          string   `json:"path"`
 	Bytes         int64    `json:"bytes"`
 	BytesApparent int64    `json:"bytes_apparent,omitempty"`
+	SizeBasis     string   `json:"size_basis,omitempty"`
+	ReclaimBytes  *int64   `json:"reclaim_bytes,omitempty"`
 	Category      string   `json:"category"`
 	Risk          Risk     `json:"risk"`
 	LastUsed      string   `json:"last_used,omitempty"`
 	Why           string   `json:"why,omitempty"`
 	Count         int      `json:"count,omitempty"`
 	Reclaim       *Reclaim `json:"reclaim,omitempty"`
+	SummaryOnly   bool     `json:"summary_only,omitempty"`
+	Containers    []string `json:"containers,omitempty"`
 }
 
 // Host is the scanned machine.
@@ -65,6 +72,8 @@ type Host struct {
 
 // Volume is APFS container fullness, not df /.
 type Volume struct {
+	ContainerID         string   `json:"container_id,omitempty"`
+	MeasuredAt          string   `json:"measured_at,omitempty"`
 	ContainerBytes      int64    `json:"container_bytes"`
 	InUseBytes          int64    `json:"in_use_bytes"`
 	FreeBytes           int64    `json:"free_bytes"`
@@ -76,13 +85,40 @@ type Volume struct {
 
 // Report is the scan document.
 type Report struct {
-	GeneratedAt string    `json:"generated_at"`
-	Mode        string    `json:"mode,omitempty"`
-	Host        Host      `json:"host"`
-	Volume      Volume    `json:"volume"`
-	Unreadable  []string  `json:"unreadable,omitempty"`
-	NotPresent  []string  `json:"not_present,omitempty"`
-	Findings    []Finding `json:"findings"`
+	GeneratedAt   string         `json:"generated_at"`
+	Mode          string         `json:"mode,omitempty"`
+	Host          Host           `json:"host"`
+	Volume        Volume         `json:"volume"`
+	Unreadable    []string       `json:"unreadable,omitempty"`
+	SkippedMounts []string       `json:"skipped_mounts,omitempty"`
+	NotPresent    []string       `json:"not_present,omitempty"`
+	Findings      []Finding      `json:"findings"`
+	ReclaimTotal  *ReclaimTotal  `json:"reclaim_total,omitempty"`
+	CatalogAdvice *CatalogAdvice `json:"catalog_advice,omitempty"`
+}
+
+type CatalogAdvice struct {
+	CanUpdateOverlay bool                `json:"can_update_overlay"`
+	OverlayPath      string              `json:"overlay_path"`
+	Message          string              `json:"message"`
+	Suggestions      []CatalogSuggestion `json:"suggestions"`
+}
+
+type CatalogSuggestion struct {
+	Path    string   `json:"path"`
+	Scans   []string `json:"scans"`
+	Reason  string   `json:"reason"`
+	Command string   `json:"command"`
+}
+
+// ReclaimTotal deliberately does not equate allocated blocks with exclusive
+// storage. APFS clones/snapshots and Docker layers require post-delete measurement.
+type ReclaimTotal struct {
+	Bytes             *int64 `json:"bytes"`
+	Targets           int    `json:"targets"`
+	Unknown           int    `json:"unknown"`
+	Basis             string `json:"basis"`
+	KnownPrivateBytes int64  `json:"known_private_bytes"`
 }
 
 // NewReport returns a schema-valid empty report.

@@ -1,13 +1,75 @@
 package scan
 
 import (
+	"context"
+	"encoding/xml"
 	"fmt"
+	"os/exec"
 	"regexp"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 )
+
+// ReadVolume measures the boot disk's APFS container, not the sealed root
+// snapshot or the first unrelated container in diskutil's full inventory.
+func ReadVolume() (findings.Volume, error) {
+	out, err := readAPFS()
+	if err != nil {
+		return findings.Volume{}, err
+	}
+	v, err := ParseVolume(out)
+	if err == nil {
+		v.MeasuredAt = time.Now().UTC().Format(time.RFC3339)
+	}
+	return v, err
+}
+
+func containerReference(raw []byte) (string, error) {
+	d := xml.NewDecoder(strings.NewReader(string(raw)))
+	key := ""
+	for {
+		tok, err := d.Token()
+		if err != nil {
+			return "", fmt.Errorf("APFS container reference missing: %w", err)
+		}
+		start, ok := tok.(xml.StartElement)
+		if !ok {
+			continue
+		}
+		if start.Name.Local == "key" {
+			if err := d.DecodeElement(&key, &start); err != nil {
+				return "", err
+			}
+		} else if key == "APFSContainerReference" && start.Name.Local == "string" {
+			var ref string
+			if err := d.DecodeElement(&ref, &start); err != nil {
+				return "", err
+			}
+			if !regexp.MustCompile(`^disk[0-9]+$`).MatchString(ref) {
+				return "", fmt.Errorf("invalid APFS container reference")
+			}
+			return ref, nil
+		}
+	}
+}
+
+func readAPFS() (string, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 10*time.Second)
+	defer cancel()
+	b, err := exec.CommandContext(ctx, "diskutil", "info", "-plist", "/").Output()
+	if err != nil {
+		return "", err
+	}
+	ref, err := containerReference(b)
+	if err != nil {
+		return "", err
+	}
+	b, err = exec.CommandContext(ctx, "diskutil", "apfs", "list", ref).Output()
+	return string(b), err
+}
 
 var (
 	reInUse        = regexp.MustCompile(`Capacity In Use By Volumes:\s+(\d+)\s*B`)
@@ -68,6 +130,9 @@ func parseBytesParen(re *regexp.Regexp, s string) int64 {
 // ParseVolume extracts APFS container figures from `diskutil apfs list` text.
 func ParseVolume(diskutilOut string) (findings.Volume, error) {
 	var v findings.Volume
+	if m := regexp.MustCompile(`APFS Container Reference:\s*(disk[0-9]+)`).FindStringSubmatch(diskutilOut); len(m) > 1 {
+		v.ContainerID = m[1]
+	}
 	v.InUseBytes = parseBytesParen(reInUse, diskutilOut)
 	v.FreeBytes = parseBytesParen(reFree, diskutilOut)
 	v.ContainerBytes = parseBytesParen(reCeiling, diskutilOut)

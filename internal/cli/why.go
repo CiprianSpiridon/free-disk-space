@@ -50,6 +50,9 @@ func runWhy(g *Global, args []string) error {
 	}
 	var keep []findings.Finding
 	for _, f := range r.Findings {
+		if f.SummaryOnly {
+			continue
+		}
 		switch f.Risk {
 		case findings.RiskSafeCache, findings.RiskRebuildable, findings.RiskLeftoverWorktree, findings.RiskUnusedRuntime, findings.RiskAsk:
 			keep = append(keep, f)

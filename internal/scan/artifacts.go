@@ -10,7 +10,6 @@ import (
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
-	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
 func init() {
@@ -315,7 +314,7 @@ func emitArtifact(ctx *Context, p, cat string, risk findings.Risk, idleDays int,
 			risk = findings.RiskKeep
 		}
 	}
-	sz := size.Of(p)
+	sz := ctx.measure(p)
 	noteUnreadable(ctx.Report, sz.Unreadable...)
 	if sz.Missing {
 		return
@@ -324,18 +323,18 @@ func emitArtifact(ctx *Context, p, cat string, risk findings.Risk, idleDays int,
 	last := ""
 	why := cat
 	if fi, err := os.Lstat(p); err == nil {
-		last = fi.ModTime().UTC().Format("2006-01-02")
+		last = measuredLast(sz, p)
 		days := int(time.Since(fi.ModTime()).Hours() / 24)
 		if days >= idleDays {
 			why = "untouched " + last
 		}
 	}
-	cmd := "rm -rf " + p
+	cmd := rmRf(p)
 	if cat == "rust-target" {
 		cmd = "cargo clean"
 	}
 	f := findings.Finding{
-		ID: findings.IDSlug(cat, p), Path: p, Bytes: sz.Allocated,
+		ID: findings.IDSlug(cat, p), Path: p, Bytes: sz.Allocated, ReclaimBytes: privateBytes(sz),
 		Category: cat, Risk: risk, LastUsed: last, Why: why,
 		Reclaim: &findings.Reclaim{Cmd: cmd},
 	}
@@ -360,7 +359,7 @@ func emitCopyBackup(ctx *Context, p string, seen map[string]struct{}) {
 	if _, ok := seen[p]; ok {
 		return
 	}
-	sz := size.Of(p)
+	sz := ctx.measure(p)
 	noteUnreadable(ctx.Report, sz.Unreadable...)
 	if sz.Missing || sz.Allocated == 0 {
 		return
@@ -374,12 +373,12 @@ func emitCopyBackup(ctx *Context, p string, seen map[string]struct{}) {
 	}
 	seen[p] = struct{}{}
 	ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{
-		ID:       findings.IDSlug("copy", p),
-		Path:     p,
-		Bytes:    sz.Allocated,
+		ID:    findings.IDSlug("copy", p),
+		Path:  p,
+		Bytes: sz.Allocated, ReclaimBytes: privateBytes(sz),
 		Category: "copy-backup",
 		Risk:     findings.RiskAsk,
-		LastUsed: lastUsedOf(p),
+		LastUsed: measuredLast(sz, p),
 		Why:      "project copy/backup name",
 		Reclaim:  &findings.Reclaim{Cmd: rmRf(p)},
 	})

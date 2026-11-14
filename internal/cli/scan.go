@@ -4,22 +4,27 @@ import (
 	"fmt"
 	"os"
 	"runtime"
+	"strconv"
 	"strings"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
 	"github.com/CiprianSpiridon/free-disk-space/internal/report"
 	"github.com/CiprianSpiridon/free-disk-space/internal/scan"
+	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
 func init() {
 	AddCommand("scan", scanLong, runScan)
 }
 
-const scanLong = `scan [--quick|--dev|--mode=NAME] [--json] [--quiet]
+const scanLong = `scan [--quick|--dev|--mode=NAME] [--workers=N] [--json] [--quiet]
+
+--workers=N bounds parallel directory reads (1-64; default 5).
 
 Modes:
   quick  volume + known catalog paths (named children, not parent blobs) + home/Library depth-1 + tmp children
+         Includes Apple simulator inventory at >=95% container fullness.
          Typical 1-5 min; up to ~10 min if $HOME has a 100GB+ work dir.
   dev    leftover worktrees + project artifacts + catalog paths tagged dev
          Typical 3-10 min.
@@ -39,9 +44,25 @@ Each scan also archives $XDG_CACHE_HOME/freedisk/history/YYYYMMDDTHHMMSSZ-MODE.j
 
 func runScan(g *Global, args []string) error {
 	mode := "full"
+	workers := size.DefaultWorkers
 	quick, dev, quiet := false, false, false
-	for _, a := range args {
+	for i := 0; i < len(args); i++ {
+		a := args[i]
 		switch {
+		case a == "--workers" || strings.HasPrefix(a, "--workers="):
+			value := strings.TrimPrefix(a, "--workers=")
+			if a == "--workers" {
+				i++
+				if i >= len(args) {
+					return fmt.Errorf("%w: --workers needs a value", ErrUsage)
+				}
+				value = args[i]
+			}
+			n, err := strconv.Atoi(value)
+			if err != nil || n < 1 || n > 64 {
+				return fmt.Errorf("%w: --workers must be 1-64", ErrUsage)
+			}
+			workers = n
 		case a == "--quick":
 			quick = true
 		case a == "--dev":
@@ -82,7 +103,7 @@ func runScan(g *Global, args []string) error {
 	}
 	rep := findings.NewReport(home)
 	rep.Host.Arch = runtime.GOARCH
-	ctx := &scan.Context{Mode: mode, Catalog: merged, Home: home, Report: &rep}
+	ctx := &scan.Context{Mode: mode, Catalog: merged, Home: home, Report: &rep, Workers: workers, OverlayPath: catalog.OverlayPath(g.Config)}
 	if !quiet && g.Stderr != nil {
 		ctx.Log = func(msg string) {
 			fmt.Fprintf(g.Stderr, "freedisk: %s\n", msg)

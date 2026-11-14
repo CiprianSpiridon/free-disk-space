@@ -14,6 +14,7 @@ const agentGuide = `freedisk — report what is eating disk on this Mac. Scan ne
 Starting point: no overlay required. Bundled catalog covers caches, SDKs, tmp,
 Desktop/Downloads, generic work roots, and auto-discovered project folders.
 
+Scans default to 5 directory workers; --workers=N accepts 1-64.
 Modes (--quick is volume+known+home depth-1+tmp, NOT cargo-target-only):
   freedisk scan --quick --json
   freedisk scan --dev --json
@@ -26,7 +27,10 @@ Expected time (developer Mac with large work trees / caches; wall clock):
 A quiet process is not hung: stderr prints "freedisk: phase ..." and
 "still walking ...". Do not kill while those lines appear. Small/empty
 disks finish in tens of seconds. Prefer --quick first; only run full if
-you need simulators or docker/brew.
+you need simulators or docker/brew. At >=95% container fullness, quick also
+includes Apple simulator inventory. Reclaim totals use minimum APFS private bytes;
+shared storage is never added as promised reclaim. Delete batches print measured
+unallocated container space before/after and continue after per-ID failures.
 
 Agents MUST update the catalog on this Mac. You are allowed and expected
 to change the per-user overlay after a scan. Bundled YAML is generic; this

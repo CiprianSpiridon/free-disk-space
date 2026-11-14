@@ -3,6 +3,7 @@ package report
 import (
 	"fmt"
 	"io"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -66,10 +67,13 @@ func isShellSafe(s string) bool {
 }
 
 func reclaimCmd(f findings.Finding) string {
+	if f.SummaryOnly || f.Risk == findings.RiskKeep || f.Risk == findings.RiskNever {
+		return ""
+	}
 	if f.Reclaim != nil && strings.TrimSpace(f.Reclaim.Cmd) != "" {
 		return f.Reclaim.Cmd
 	}
-	if f.Path != "" {
+	if filepath.IsAbs(f.Path) {
 		return "rm -rf " + shellQuote(f.Path)
 	}
 	return ""
@@ -100,7 +104,21 @@ func humanBytes(n int64) string {
 	return fmt.Sprintf("%.1f %s", float64(n)/float64(div), units[exp])
 }
 
+func displaySize(f findings.Finding) string {
+	s := humanBytes(f.Bytes)
+	if f.BytesApparent > f.Bytes {
+		s += " allocated / " + humanBytes(f.BytesApparent) + " apparent"
+	}
+	if f.SizeBasis != "" {
+		s += " (" + f.SizeBasis + ")"
+	}
+	return s
+}
+
 func highConfidence(f findings.Finding, opt Options) bool {
+	if f.SummaryOnly {
+		return false
+	}
 	if f.Risk == findings.RiskKeep || f.Risk == findings.RiskNever {
 		return false
 	}
@@ -125,6 +143,7 @@ func highConfidence(f findings.Finding, opt Options) bool {
 
 // Markdown writes the human scan report.
 func Markdown(w io.Writer, r findings.Report, opt Options) error {
+	r = findings.Normalize(r)
 	if opt.ArtifactIdleDays == 0 {
 		opt.ArtifactIdleDays = 30
 	}
@@ -143,10 +162,18 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 	if r.GeneratedAt != "" {
 		fmt.Fprintf(w, "- Generated: %s\n", r.GeneratedAt)
 	}
-	fmt.Fprintf(w, "- Container: %s in use / %s free (%.0f%%)\n",
+	fmt.Fprintf(w, "- Container: %s in use / Unallocated container space: %s (%.0f%% used)\n",
 		humanBytes(v.InUseBytes), humanBytes(v.FreeBytes), pct)
+	if r.ReclaimTotal.Bytes == nil {
+		fmt.Fprintf(w, "- Reclaim total: unknown before deletion (%d targets, %d without private-byte metadata; at least %s measured private bytes). %s\n", r.ReclaimTotal.Targets, r.ReclaimTotal.Unknown, humanBytes(r.ReclaimTotal.KnownPrivateBytes), r.ReclaimTotal.Basis)
+	} else {
+		fmt.Fprintf(w, "- Reclaim total: at least %s. %s\n", humanBytes(*r.ReclaimTotal.Bytes), r.ReclaimTotal.Basis)
+	}
 	if v.DataVolumeUsedBytes > 0 {
 		fmt.Fprintf(w, "- Data volume: %s\n", humanBytes(v.DataVolumeUsedBytes))
+	}
+	if len(r.SkippedMounts) > 0 {
+		fmt.Fprintf(w, "- Mounted filesystems excluded from host directory sizes: %s\n", strings.Join(r.SkippedMounts, ", "))
 	}
 	if v.DFRootUsedBytes > 0 && v.InUseBytes > v.DFRootUsedBytes*2 {
 		fmt.Fprintf(w, "- Note: df / disagrees (sealed snapshot)\n")
@@ -158,11 +185,14 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 			continue
 		}
 		fmt.Fprintf(w, "| `%s` | `%s` | %s | %s | %s | `%s` |\n",
-			mdCell(f.ID), mdCell(f.Path), humanBytes(f.Bytes), displayLast(f.LastUsed), f.Risk, mdCell(reclaimCmd(f)))
+			mdCell(f.ID), mdCell(f.Path), displaySize(f), displayLast(f.LastUsed), f.Risk, mdCell(reclaimCmd(f)))
 	}
 	fmt.Fprintf(w, "\n## Ask first\n\n")
 	fmt.Fprintf(w, "| id | path | size | last used | why | command |\n| --- | --- | --- | --- | --- | --- |\n")
 	for _, f := range r.Findings {
+		if f.SummaryOnly {
+			continue
+		}
 		if f.Risk == findings.RiskKeep || f.Risk == findings.RiskNever {
 			continue
 		}
@@ -170,12 +200,18 @@ func Markdown(w io.Writer, r findings.Report, opt Options) error {
 			continue
 		}
 		fmt.Fprintf(w, "| `%s` | `%s` | %s | %s | %s | `%s` |\n",
-			mdCell(f.ID), mdCell(f.Path), humanBytes(f.Bytes), displayLast(f.LastUsed), mdCell(f.Why), mdCell(reclaimCmd(f)))
+			mdCell(f.ID), mdCell(f.Path), displaySize(f), displayLast(f.LastUsed), mdCell(f.Why), mdCell(reclaimCmd(f)))
 	}
 	fmt.Fprintf(w, "\n## Keep / not reclaim\n")
 	for _, f := range r.Findings {
-		if f.Risk == findings.RiskKeep || f.Risk == findings.RiskNever {
-			fmt.Fprintf(w, "- %s (%s)\n", f.Path, humanBytes(f.Bytes))
+		if f.SummaryOnly || f.Risk == findings.RiskKeep || f.Risk == findings.RiskNever {
+			fmt.Fprintf(w, "- %s (%s; newest use: %s) %s\n", f.Path, displaySize(f), displayLast(f.LastUsed), mdCell(f.Why))
+		}
+	}
+	if r.CatalogAdvice != nil {
+		fmt.Fprintf(w, "\n## Agent catalog advice\n\n%s\n\nOverlay: `%s`\n", r.CatalogAdvice.Message, mdCell(r.CatalogAdvice.OverlayPath))
+		for _, s := range r.CatalogAdvice.Suggestions {
+			fmt.Fprintf(w, "\n- `%s` → %s: %s\n  `%s`\n", mdCell(s.Path), strings.Join(s.Scans, ", "), s.Reason, mdCell(s.Command))
 		}
 	}
 	fmt.Fprintf(w, "\n## Not present\n")

@@ -37,8 +37,20 @@ var ErrBusy = fmt.Errorf("owner process running")
 
 // ApplyOne deletes one finding after policy checks. Does not prompt.
 func ApplyOne(f findings.Finding) error {
+	if f.SummaryOnly {
+		return fmt.Errorf("refused inventory parent %s", f.Path)
+	}
 	if f.Risk == findings.RiskKeep || f.Risk == findings.RiskNever {
 		return fmt.Errorf("refused risk %s", f.Risk)
+	}
+	if f.Reclaim != nil && f.Reclaim.Kind != "" {
+		return applyManaged(f)
+	}
+	if f.Category == "simulator-device" || f.Category == "simulator-runtime" || f.Category == "docker-image" {
+		return fmt.Errorf("rescan required: missing owner action for %s", f.ID)
+	}
+	if strings.Contains(filepath.ToSlash(f.Path), "/.rustup/toolchains/") {
+		return fmt.Errorf("rescan required: missing rustup owner action")
 	}
 	if !policy.CanDelete(f.Path) {
 		return fmt.Errorf("refused path %s", f.Path)

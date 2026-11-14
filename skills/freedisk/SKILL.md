@@ -37,8 +37,14 @@ Do **not** kill a scan that is still printing `freedisk: phase …` or
 | default / full | 5–15 min | drill capped at ~3 min, then simctl / Android / docker / brew |
 
 Empty or small disks finish in tens of seconds. Start with `--quick`.
+The scanner defaults to five bounded directory workers; `--workers=N` accepts 1-64.
+Measurements are reused only within the current scan.
+Every scan emits `catalog_advice` in JSON and Markdown. Use its suggested paths,
+quick/dev scan tags, reasons and commands to improve the per-user overlay when
+they represent recurring patterns. You may do this; it does not authorize deletes.
 Run `--dev` when you need `node_modules` / `target` / leftover worktrees.
-Run full only for simulators or `docker system df` / `brew autoremove`.
+At 95% container fullness or above, quick also includes Apple simulator inventory.
+Use full for simulator detail otherwise, or dev/full for Docker and Homebrew.
 
 ## Modes
 
@@ -84,7 +90,7 @@ class as delete denials.
 - Print reclaim commands. Do not run them from scan.
 - Progress is on stderr (`freedisk: phase …`); JSON stdout stays clean. `--quiet` silences progress.
 - Full `freedisk scan` time-budgets the drill phase. It keeps partial children and still prints the report. It does not abort with `drill timed out`.
-- Worktrees: grok/claude/codex/ulpi reclaim is `rm -rf PATH`; git linked worktrees use `git worktree remove --force PATH`. Newest iOS DeviceSupport is keep; older folders unused-runtime. Extra rustup/nvm versions unused-runtime. simctl runtimes include Volumes bytes. `--dev`/full also run `docker system df` and `brew autoremove --dry-run` when those tools exist.
+- Worktrees: grok/claude/codex/ulpi reclaim is `rm -rf PATH`; git linked worktrees use `git worktree remove --force PATH`. Newest iOS DeviceSupport is keep; older folders unused-runtime. Rustup active/default selections, overrides and project pins are kept; extra unreferenced toolchains can be unused-runtime. Runtime rows use backing-image metadata and disk-image UUIDs, never mounted-volume removal. `--dev`/full also run `docker system df` and `brew autoremove --dry-run` when those tools exist.
 
 ## Delete (only if the human listed ids)
 
@@ -98,6 +104,13 @@ Never `--all`. Never automatic. Agents must not delete unless the human named th
 Refused: `keep`/`never`, git-tracked, in-flight worktrees, busy npm/pnpm/yarn/cargo/uv/docker, tmp roots, `/System`, `~/.cargo` as a whole, `/`, `$HOME`, whole Downloads/Desktop/Documents/Library, `/Library/Developer`, `/opt/homebrew`, iCloud `Mobile Documents`.
 
 Stale last-scan (>24h) cannot be deleted against. Re-scan first.
+
+Parents containing findings are inventory only. Reclaim totals use minimum APFS
+private bytes; shared/unsupported storage remains unknown. Never sum row sizes as
+promised reclaim. Delete batches continue after per-ID failures and print measured
+unallocated container space before/after beside row-size sums. Simulator deletion
+uses owner APIs, shuts devices down as needed, and waits for runtime images to go.
+Docker images referenced by containers are keep, even when untagged.
 
 ## Historic reports
 

@@ -48,12 +48,36 @@ func Register(p Phase) {
 
 // Context is one scan run.
 type Context struct {
-	Mode     string
-	Catalog  *catalog.Catalog
-	Home     string
-	Report   *findings.Report
-	Diskutil func() (string, error)
-	Log      func(string)
+	Mode        string
+	Catalog     *catalog.Catalog
+	Home        string
+	Report      *findings.Report
+	Diskutil    func() (string, error)
+	Log         func(string)
+	Sizer       *size.Scanner
+	Workers     int
+	OverlayPath string
+	mounts      map[string]bool
+}
+
+func (ctx *Context) measure(p string) size.Result {
+	if ctx.Sizer == nil {
+		ctx.Sizer = size.NewScanner()
+		if ctx.Workers > 0 {
+			ctx.Sizer.Workers = ctx.Workers
+		}
+	}
+	r := ctx.Sizer.Of(p)
+	if ctx.mounts == nil {
+		ctx.mounts = map[string]bool{}
+	}
+	for _, m := range r.SkippedMounts {
+		if !ctx.mounts[m] && ctx.Report != nil {
+			ctx.Report.SkippedMounts = append(ctx.Report.SkippedMounts, m)
+			ctx.mounts[m] = true
+		}
+	}
+	return r
 }
 
 func (ctx *Context) logf(format string, args ...any) {
@@ -73,13 +97,7 @@ func registerCore() {
 func runVolume(ctx *Context) error {
 	fn := ctx.Diskutil
 	if fn == nil {
-		fn = func() (string, error) {
-			if _, err := exec.LookPath("diskutil"); err != nil {
-				return "", fmt.Errorf("diskutil missing")
-			}
-			out, err := exec.Command("diskutil", "apfs", "list").Output()
-			return string(out), err
-		}
+		fn = readAPFS
 	}
 	out, err := fn()
 	if err != nil {
@@ -93,6 +111,7 @@ func runVolume(ctx *Context) error {
 		return err
 	}
 	v.Snapshots = listLocalSnapshots()
+	v.MeasuredAt = time.Now().UTC().Format(time.RFC3339)
 	ctx.Report.Volume = v
 	return nil
 }
@@ -136,6 +155,9 @@ func wantPhase(ctx *Context, p Phase) bool {
 	}
 	switch ctx.Mode {
 	case "quick":
+		if p.Name == "apple-sim" && ctx.Report.Volume.ContainerBytes > 0 && float64(ctx.Report.Volume.InUseBytes)/float64(ctx.Report.Volume.ContainerBytes) >= 0.95 {
+			return true
+		}
 		return p.Quick
 	case "dev":
 		return p.Dev
@@ -209,6 +231,8 @@ func Run(ctx *Context) error {
 		ctx.logf("phase %s done in %s", p.Name, time.Since(t0).Round(time.Millisecond))
 	}
 	if ctx.Report != nil {
+		ctx.Report.CatalogAdvice = catalogAdvice(ctx)
+		*ctx.Report = findings.Normalize(*ctx.Report)
 		findings.UniquifyIDs(ctx.Report)
 		ctx.logf("scan done %d findings", len(ctx.Report.Findings))
 	}

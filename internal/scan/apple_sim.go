@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
+	"github.com/CiprianSpiridon/free-disk-space/internal/simulator"
 	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
@@ -32,6 +33,8 @@ var SimctlJSON = func() ([]byte, error) {
 var SimctlRuntimesJSON = func() ([]byte, error) {
 	return simctlTimeout("simctl", "list", "runtimes", "-j")
 }
+
+var SimctlImagesJSON = func() ([]byte, error) { return simctlTimeout("simctl", "runtime", "list", "-j") }
 
 type simctlDevices struct {
 	Devices map[string][]struct {
@@ -63,13 +66,19 @@ func runAppleSim(ctx *Context) error {
 		ctx.Report.NotPresent = append(ctx.Report.NotPresent, "simctl")
 		return nil
 	}
-	booted, perr := ParseSimctlDevices(b, ctx.Report, ctx.Home)
+	booted, perr := parseSimctlDevices(b, ctx.Report, ctx.Home, ctx.measure)
 	if perr != nil {
 		ctx.Report.NotPresent = append(ctx.Report.NotPresent, "simctl-json")
+		booted = nil
 	}
 	rb, err := SimctlRuntimesJSON()
 	if err == nil {
-		ParseSimctlRuntimes(rb, ctx.Report, booted, "/Library/Developer/CoreSimulator/Volumes")
+		ib, ierr := SimctlImagesJSON()
+		images, parseErr := simulator.ParseImages(ib)
+		if ierr != nil || parseErr != nil {
+			ctx.Report.NotPresent = append(ctx.Report.NotPresent, "simctl-runtime-images")
+		}
+		parseSimctlRuntimes(rb, ctx.Report, booted, "", images, ctx.measure)
 	}
 	return nil
 }
@@ -77,6 +86,10 @@ func runAppleSim(ctx *Context) error {
 // ParseSimctlDevices joins on runtimeIdentifier, not display name.
 // Path is the on-disk device directory when home is set.
 func ParseSimctlDevices(raw []byte, rep *findings.Report, home string) (map[string]bool, error) {
+	return parseSimctlDevices(raw, rep, home, size.NewScanner().Of)
+}
+
+func parseSimctlDevices(raw []byte, rep *findings.Report, home string, measure func(string) size.Result) (map[string]bool, error) {
 	booted := map[string]bool{}
 	var doc simctlDevices
 	if err := json.Unmarshal(raw, &doc); err != nil {
@@ -88,28 +101,34 @@ func ParseSimctlDevices(raw []byte, rep *findings.Report, home string) (map[stri
 	}
 	for group, devs := range doc.Devices {
 		for _, d := range devs {
-			if d.RuntimeIdentifier != "" && d.LastBootedAt != "" {
-				booted[d.RuntimeIdentifier] = true
+			runtimeID := d.RuntimeIdentifier
+			if runtimeID == "" && strings.HasPrefix(group, "com.apple.CoreSimulator.SimRuntime.") {
+				runtimeID = group
+			}
+			if runtimeID != "" && (d.LastBootedAt != "" || d.State == "Booted") {
+				booted[runtimeID] = true
 			}
 			risk := findings.RiskAsk
-			if d.LastBootedAt == "" {
+			if d.LastBootedAt == "" && d.State != "Booted" {
 				risk = findings.RiskUnusedRuntime
 			}
-			why := "runtimeIdentifier=" + d.RuntimeIdentifier + " group=" + group
+			why := d.Name + " state=" + d.State + " runtimeIdentifier=" + runtimeID
 			p := d.UDID
 			var bytes int64
+			var reclaimBytes *int64
 			if deviceDir != "" && d.UDID != "" {
 				p = filepath.Join(deviceDir, d.UDID)
-				sz := size.Of(p)
+				sz := measure(p)
 				if !sz.Missing && sz.Err == nil {
 					bytes = sz.Allocated
+					reclaimBytes = privateBytes(sz)
 				}
 			}
 			rep.Findings = append(rep.Findings, findings.Finding{
-				ID: "sim-" + d.UDID, Path: p, Bytes: bytes,
+				ID: "sim-" + d.UDID, Path: p, Bytes: bytes, ReclaimBytes: reclaimBytes,
 				Category: "simulator-device", Risk: risk,
 				LastUsed: d.LastBootedAt, Why: why,
-				Reclaim: &findings.Reclaim{Cmd: "xcrun simctl delete " + d.UDID},
+				Reclaim: &findings.Reclaim{Cmd: "xcrun simctl shutdown " + d.UDID + "; xcrun simctl delete " + d.UDID, Kind: "simulator-device", Target: d.UDID},
 			})
 		}
 	}
@@ -118,12 +137,13 @@ func ParseSimctlDevices(raw []byte, rep *findings.Report, home string) (map[stri
 
 // ParseSimctlRuntimes marks a runtime unused-runtime only when none of its devices were ever booted.
 func ParseSimctlRuntimes(raw []byte, rep *findings.Report, booted map[string]bool, volumesDir string) {
+	parseSimctlRuntimes(raw, rep, booted, volumesDir, nil, size.NewScanner().Of)
+}
+
+func parseSimctlRuntimes(raw []byte, rep *findings.Report, booted map[string]bool, volumesDir string, images []simulator.Image, measure func(string) size.Result) {
 	var doc simctlRuntimes
 	if err := json.Unmarshal(raw, &doc); err != nil {
 		return
-	}
-	if booted == nil {
-		booted = map[string]bool{}
 	}
 	for _, rt := range doc.Runtimes {
 		if rt.Identifier == "" {
@@ -131,27 +151,60 @@ func ParseSimctlRuntimes(raw []byte, rep *findings.Report, booted map[string]boo
 		}
 		risk := findings.RiskAsk
 		why := "simctl runtime " + rt.Name
-		if !booted[rt.Identifier] {
+		if booted != nil && !booted[rt.Identifier] {
 			risk = findings.RiskUnusedRuntime
 			why = "runtime never booted identifier=" + rt.Identifier
 		}
 		p := rt.Identifier
 		var bytes int64
-		if vol := runtimeVolumePath(rt.RuntimeRoot, rt.Buildversion, rt.Name, volumesDir); vol != "" {
+		if vol := runtimeVolumePath(rt.RuntimeRoot, rt.Buildversion, rt.Name, volumesDir); volumesDir != "" && vol != "" {
 			p = vol
-			sz := size.Of(vol)
+			sz := measure(vol)
 			if !sz.Missing && sz.Err == nil {
 				bytes = sz.Allocated
 			}
 		}
+		var matches []simulator.Image
+		for _, img := range images {
+			if img.RuntimeIdentifier == rt.Identifier || (img.RuntimeIdentifier == "" && rt.Buildversion != "" && img.Build == rt.Buildversion) {
+				matches = append(matches, img)
+			}
+		}
+		if len(matches) > 0 {
+			for _, img := range matches {
+				imagePath := img.Path
+				if imagePath == "" {
+					imagePath = "simulator-runtime:" + img.Identifier
+				}
+				imageBytes := img.SizeBytes
+				var reclaimBytes *int64
+				var apparent int64
+				basis := "runtime-image-reported"
+				if img.Path != "" {
+					sz := measure(img.Path)
+					if !sz.Missing && sz.Err == nil {
+						imageBytes = sz.Allocated
+						reclaimBytes = privateBytes(sz)
+						apparent = sz.Apparent
+						basis = ""
+					}
+				}
+				var action *findings.Reclaim
+				if img.State == "Ready" {
+					action = &findings.Reclaim{Kind: "simulator-runtime", Target: img.Identifier, Cmd: "xcrun simctl runtime delete " + img.Identifier}
+				}
+				rep.Findings = append(rep.Findings, findings.Finding{ID: findings.IDSlug("sim-runtime", img.Identifier), Path: imagePath, Bytes: imageBytes, ReclaimBytes: reclaimBytes, BytesApparent: apparent, SizeBasis: basis, Category: "simulator-runtime", Risk: risk, Why: why + " disk image=" + img.Identifier + " state=" + img.State, LastUsed: img.LastUsedAt, Reclaim: action, SummaryOnly: action == nil})
+			}
+			continue
+		}
 		rep.Findings = append(rep.Findings, findings.Finding{
-			ID:       findings.IDSlug("sim-runtime", rt.Identifier),
-			Path:     p,
-			Bytes:    bytes,
-			Category: "simulator-runtime",
-			Risk:     risk,
-			Why:      why,
-			Reclaim:  &findings.Reclaim{Cmd: "xcrun simctl runtime delete " + rt.Identifier},
+			ID:          findings.IDSlug("sim-runtime", rt.Identifier),
+			Path:        p,
+			Bytes:       bytes,
+			Category:    "simulator-runtime",
+			Risk:        risk,
+			Why:         why,
+			SummaryOnly: true,
 		})
 	}
 }

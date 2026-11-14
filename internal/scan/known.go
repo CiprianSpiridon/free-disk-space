@@ -121,12 +121,13 @@ func entryFinding(e catalog.Entry, path string, sz size.Result) findings.Finding
 		risk = findings.RiskAsk
 	}
 	f := findings.Finding{
-		ID:       findings.IDSlug(e.Category, path),
-		Path:     path,
-		Bytes:    sz.Allocated,
-		Category: e.Category,
-		Risk:     risk,
-		Why:      e.Note,
+		ID:           findings.IDSlug(e.Category, path),
+		Path:         path,
+		Bytes:        sz.Allocated,
+		ReclaimBytes: privateBytes(sz),
+		Category:     e.Category,
+		Risk:         risk,
+		Why:          e.Note,
 	}
 	if e.Sparse && sz.Apparent > sz.Allocated {
 		f.BytesApparent = sz.Apparent
@@ -136,6 +137,9 @@ func entryFinding(e catalog.Entry, path string, sz size.Result) findings.Finding
 	}
 	if fi, err := os.Lstat(path); err == nil {
 		f.LastUsed = fi.ModTime().UTC().Format("2006-01-02")
+	}
+	if !sz.Newest.IsZero() {
+		f.LastUsed = sz.Newest.UTC().Format("2006-01-02")
 	}
 	return f
 }
@@ -224,8 +228,7 @@ func sizeOne(ctx *Context, e catalog.Entry, p string, seen map[string]struct{}, 
 		rep.Findings = append(rep.Findings, kids...)
 	default:
 		ctx.logf("sizing %s", p)
-		sz = size.OfSkipping(p, skipUnder(p, sized))
-		sz = addSizedChildren(sz, p, sized)
+		sz = ctx.measure(p)
 	}
 	noteUnreadable(rep, sz.Unreadable...)
 	if sz.Missing {
@@ -243,7 +246,7 @@ func sizeOne(ctx *Context, e catalog.Entry, p string, seen map[string]struct{}, 
 	}
 	rep.Findings = append(rep.Findings, entryFinding(e, p, sz))
 	if e.GlobChildren != "" {
-		emitGlobChildren(e, p, seen, rep)
+		emitGlobChildren(ctx, e, p, seen, rep)
 	}
 	return sized
 }
@@ -259,8 +262,6 @@ func depth1(ctx *Context, dir string, parent catalog.Entry, seen map[string]stru
 		}
 		return size.Result{Err: err}, nil, sized
 	}
-	var alloc, app int64
-	var unread []string
 	var kids []findings.Finding
 	for _, ent := range ents {
 		if ent.Type()&os.ModeSymlink != 0 {
@@ -281,11 +282,9 @@ func depth1(ctx *Context, dir string, parent catalog.Entry, seen map[string]stru
 			if !info.IsDir() {
 				child = size.OfFileInfo(info)
 			} else {
-				child = size.OfSkipping(cp, skipUnder(cp, sized))
-				child = addSizedChildren(child, cp, sized)
+				child = ctx.measure(cp)
 			}
 			noteUnreadable(ctx.Report, child.Unreadable...)
-			unread = append(unread, child.Unreadable...)
 			if child.Missing || child.Err != nil {
 				continue
 			}
@@ -293,21 +292,21 @@ func depth1(ctx *Context, dir string, parent catalog.Entry, seen map[string]stru
 			sized = append(sized, sizedTree{path: key, allocated: child.Allocated, apparent: child.Apparent})
 			if child.Allocated >= minChild {
 				kids = append(kids, findings.Finding{
-					ID:       findings.IDSlug(parent.Category+"-child", cp),
-					Path:     cp,
-					Bytes:    child.Allocated,
-					Category: parent.Category,
-					Risk:     findings.RiskAsk,
-					LastUsed: lastUsedOf(cp),
-					Why:      "depth-1 of " + dir,
-					Reclaim:  &findings.Reclaim{Cmd: rmRf(cp)},
+					ID:           findings.IDSlug(parent.Category+"-child", cp),
+					Path:         cp,
+					Bytes:        child.Allocated,
+					ReclaimBytes: privateBytes(child),
+					Category:     parent.Category,
+					Risk:         findings.RiskAsk,
+					LastUsed:     measuredLast(child, cp),
+					Why:          "depth-1 of " + dir,
+					Reclaim:      &findings.Reclaim{Cmd: rmRf(cp)},
 				})
 			}
 		}
-		alloc += child.Allocated
-		app += child.Apparent
 	}
-	return size.Result{Allocated: alloc, Apparent: app, Unreadable: unread}, kids, sized
+	parentSize := ctx.measure(dir)
+	return parentSize, kids, sized
 }
 
 func homeDepth1(ctx *Context, seen map[string]struct{}, sized []sizedTree, min int64) {
@@ -348,8 +347,7 @@ func emitDepth1Unknown(ctx *Context, dir string, seen map[string]struct{}, sized
 			continue
 		}
 		ctx.logf("sizing %s", p)
-		sz := size.OfSkipping(p, skipUnder(p, sized))
-		sz = addSizedChildren(sz, p, sized)
+		sz := ctx.measure(p)
 		noteUnreadable(ctx.Report, sz.Unreadable...)
 		if sz.Missing || sz.Err != nil || sz.Allocated < min {
 			continue
@@ -364,19 +362,20 @@ func emitDepth1Unknown(ctx *Context, dir string, seen map[string]struct{}, sized
 			why = "library depth-1"
 		}
 		ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{
-			ID:       findings.IDSlug(category, p),
-			Path:     p,
-			Bytes:    sz.Allocated,
-			Category: category,
-			Risk:     risk,
-			LastUsed: lastUsedOf(p),
-			Why:      why,
-			Reclaim:  &findings.Reclaim{Cmd: rmRf(p)},
+			ID:           findings.IDSlug(category, p),
+			Path:         p,
+			Bytes:        sz.Allocated,
+			ReclaimBytes: privateBytes(sz),
+			Category:     category,
+			Risk:         risk,
+			LastUsed:     measuredLast(sz, p),
+			Why:          why,
+			Reclaim:      &findings.Reclaim{Cmd: rmRf(p)},
 		})
 	}
 }
 
-func emitGlobChildren(e catalog.Entry, dir string, seen map[string]struct{}, rep *findings.Report) {
+func emitGlobChildren(ctx *Context, e catalog.Entry, dir string, seen map[string]struct{}, rep *findings.Report) {
 	matches, err := filepath.Glob(filepath.Join(dir, e.GlobChildren))
 	if err != nil {
 		return
@@ -394,7 +393,7 @@ func emitGlobChildren(e catalog.Entry, dir string, seen map[string]struct{}, rep
 		if err != nil || fi.Mode()&os.ModeSymlink != 0 {
 			continue
 		}
-		sz := size.Of(m)
+		sz := ctx.measure(m)
 		noteUnreadable(rep, sz.Unreadable...)
 		if sz.Missing || sz.Err != nil {
 			continue
@@ -405,4 +404,19 @@ func emitGlobChildren(e catalog.Entry, dir string, seen map[string]struct{}, rep
 		rep.Findings = append(rep.Findings, entryFinding(child, m, sz))
 		n++
 	}
+}
+
+func measuredLast(sz size.Result, path string) string {
+	if !sz.Newest.IsZero() {
+		return sz.Newest.UTC().Format("2006-01-02")
+	}
+	return lastUsedOf(path)
+}
+
+func privateBytes(sz size.Result) *int64 {
+	if !sz.PrivateKnown || sz.Err != nil || len(sz.Unreadable) > 0 {
+		return nil
+	}
+	n := sz.Private
+	return &n
 }

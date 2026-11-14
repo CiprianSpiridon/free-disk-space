@@ -11,7 +11,7 @@ It is not a cleaner. It is not CleanMyMac. It is not
 [Mole](https://github.com/tw93/mole). Nothing is removed unless a human
 names finding ids and runs `freedisk delete`.
 
-**0.2.0** · MIT · macOS / APFS only · Go 1.22+ ·
+**0.3.0** · MIT · macOS / APFS only · Go 1.22+ ·
 [`github.com/CiprianSpiridon/free-disk-space`](https://github.com/CiprianSpiridon/free-disk-space)
 
 ```
@@ -63,7 +63,7 @@ From a checkout:
 ```bash
 go install ./cmd/freedisk
 ln -sfn "$(go env GOPATH)/bin/freedisk" "$HOME/bin/freedisk"   # optional if ~/bin is on PATH
-freedisk version   # 0.2.0
+freedisk version   # 0.3.0
 ```
 
 From GitHub (once GOPROXY can see the module):
@@ -107,6 +107,9 @@ Progress is on **stderr** (`freedisk: phase …`, `still walking …`).
 `--quiet` silences it. Do not kill a scan that is still printing those
 lines.
 
+At **95% container fullness or above**, quick also includes the Apple simulator
+inventory. DeviceSupport children are classified during quick scans.
+
 No overlay is required. The bundled catalog already covers known caches,
 SDKs, tmp, Desktop/Downloads, generic work roots, and auto-discovered
 project folders.
@@ -126,6 +129,24 @@ Small disks: tens of seconds. Prefer `--quick` first.
 Markdown tables always include **id**, **path**, **last used**, and a
 **command** (catalog owner cmd, or `rm -rf PATH`). The live report also
 prints size and risk.
+
+Parent directories containing other findings are inventory only (`summary_only`),
+with the newest descendant date. They are refused by delete. Sparse files show
+allocated and apparent sizes separately. Docker image rows identify referencing
+containers and keep those images, including untagged images.
+
+The **reclaim total** is a minimum based on APFS private-byte metadata, excluding
+blocks retained by clones, snapshots, or hard links. Unsupported metadata and
+Docker guest storage remain unknown. Row sizes are never summed as promised
+reclaim. Every delete batch compares **unallocated container space** before and
+after with requested/completed row sizes. Concurrent disk activity affects that
+measured change.
+
+Simulator devices use `simctl` shutdown/delete. Runtime deletion uses the
+disk-image UUID from `simctl runtime list -j` and waits for its disappearance;
+mounted volumes are never removed directly. A failed ID does not stop the rest
+of the approved batch. Rustup selection, overrides and project pins are checked
+before classifying a toolchain unused, and checked again on deletion.
 
 Never guess a path from a truncated id. JSON field `.path` is the real
 path. Print commands; do not run them unless the human named those ids.
@@ -249,6 +270,44 @@ Set `HOME` (and `XDG_CACHE_HOME`) to a temp dir in tests that call
 | `catalog/macos-hotspots.yaml` | bundled paths (`go:embed` via `catalog/embed.go`) |
 | `findings.schema.json` | JSON contract; keep `internal/findings` in sync |
 | `skills/freedisk/SKILL.md` | agent skill; `freedisk skill install` copies it |
+
+### Scan performance
+
+The macOS scanner reads metadata in batches with `getattrlistbulk` and defaults
+to **five directory workers**. Use `--workers=N` (1-64) to tune concurrency.
+Measurements are cached only within the current scan and reused across phases.
+Hard links, sparse files, symlinks and permission errors retain their handling.
+Mounted filesystems are recorded in `skipped_mounts` and excluded from host totals.
+Unsupported bulk metadata falls back to stat; private-byte estimates remain unknown.
+
+A cache-tree traversal benchmark on this Mac scanned the same **363,723 entries**
+twice, in opposite worker-count orders:
+
+| Workers | Pass 1 | Pass 2 | Average |
+| ---: | ---: | ---: | ---: |
+| 1 | 77.3s | 70.4s | 73.9s |
+| 2 | 44.3s | 38.6s | 41.4s |
+| 4 | 32.1s | 33.2s | 32.7s |
+| 5 | 30.6s | 25.4s | 28.0s |
+| 10 | 34.0s | 25.4s | 29.7s |
+
+These are **targeted traversal timings, not full scans**. Every pass matched on
+allocated/apparent sizes, private bytes, newest dates and entry counts. Filesystem
+caches and concurrent disk activity affect timings. Five had the lowest average;
+five and ten were effectively tied in the second pass.
+
+```bash
+FREEDISK_BENCH_PATH=/path/to/tree go test ./internal/size -run '^$' -bench '^BenchmarkWorkerCounts$' -benchtime=1x -benchmem
+freedisk scan --workers=5 --json    # full scan, all enabled phases
+freedisk scan --workers=10 --json   # same scope, different concurrency
+```
+
+Scan results include `catalog_advice`: agents are allowed and expected to improve
+this Mac's per-user catalog overlay. The report suggests large unlisted paths for
+quick scans (recurring caches or home/Library hotspots) or dev scans (project and
+build artifacts), with reasons and commands. Add useful recurring patterns, skip
+one-off temporary paths, and re-scan after overlay changes. This never authorizes
+file deletion or edits to the bundled catalog.
 
 ### Add a known path
 

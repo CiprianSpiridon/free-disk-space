@@ -14,11 +14,17 @@ import (
 
 // Result is allocated vs apparent size for one path.
 type Result struct {
-	Allocated  int64
-	Apparent   int64
-	Missing    bool
-	Err        error
-	Unreadable []string
+	Private       int64
+	PrivateKnown  bool
+	device        uint64
+	Allocated     int64
+	Apparent      int64
+	Missing       bool
+	Err           error
+	Unreadable    []string
+	SkippedMounts []string
+	Newest        time.Time
+	links         map[[2]uint64][2]int64
 }
 
 // Of returns allocated (st_blocks*512) and apparent (st_size) for path.

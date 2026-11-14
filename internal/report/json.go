@@ -51,6 +51,7 @@ func cleanReport(r findings.Report) findings.Report {
 
 // JSON writes a schema-shaped report.
 func JSON(w io.Writer, r findings.Report) error {
+	r = findings.Normalize(r)
 	enc := json.NewEncoder(w)
 	enc.SetIndent("", "  ")
 	return enc.Encode(cleanReport(r))

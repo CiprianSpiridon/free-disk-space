@@ -24,6 +24,7 @@ func LastScanPath() string {
 
 // WriteLastScan persists the report.
 func WriteLastScan(path string, r findings.Report) error {
+	r = findings.Normalize(r)
 	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
 		return err
 	}
@@ -52,7 +53,7 @@ func ReadReportFile(path string) (findings.Report, error) {
 			return findings.Report{}, fmt.Errorf("corrupt report: finding missing id or path")
 		}
 	}
-	return r, nil
+	return findings.Normalize(r), nil
 }
 
 // ReadLastScan loads the report used by why/delete. Rejects scans older than LastScanMaxAge.

@@ -6,7 +6,6 @@ import (
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
-	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
 func init() {
@@ -55,7 +54,7 @@ func runAndroidSim(ctx *Context) error {
 	}
 	for _, e := range images {
 		p := catalog.ExpandPath(e.Path, ctx.Home)
-		sz := size.Of(p)
+		sz := ctx.measure(p)
 		noteUnreadable(ctx.Report, sz.Unreadable...)
 		if sz.Missing {
 			continue
@@ -65,7 +64,7 @@ func runAndroidSim(ctx *Context) error {
 			risk = findings.RiskUnusedRuntime
 		}
 		ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{
-			ID: findings.IDSlug("android-image", p), Path: p, Bytes: sz.Allocated,
+			ID: findings.IDSlug("android-image", p), Path: p, Bytes: sz.Allocated, ReclaimBytes: privateBytes(sz),
 			Category: e.Category, Risk: risk,
 			Why: "android system-images; avds=" + filepath.Base(p),
 		})

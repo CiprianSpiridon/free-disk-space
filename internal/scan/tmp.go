@@ -7,7 +7,6 @@ import (
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/catalog"
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
-	"github.com/CiprianSpiridon/free-disk-space/internal/size"
 )
 
 func init() {
@@ -62,7 +61,7 @@ func runTmp(ctx *Context) error {
 			if ent.Type()&os.ModeSymlink != 0 {
 				continue
 			}
-			sz := size.Of(p)
+			sz := ctx.measure(p)
 			noteUnreadable(ctx.Report, sz.Unreadable...)
 			if sz.Missing || sz.Allocated < min {
 				continue
@@ -71,7 +70,7 @@ func runTmp(ctx *Context) error {
 			last := ""
 			days := 0
 			if err == nil {
-				last = info.ModTime().UTC().Format("2006-01-02")
+				last = measuredLast(sz, p)
 				days = int(time.Since(info.ModTime()).Hours() / 24)
 			}
 			why := "tmp child"
@@ -82,9 +81,9 @@ func runTmp(ctx *Context) error {
 				why = "untouched " + last + " in tmp"
 			}
 			ctx.Report.Findings = append(ctx.Report.Findings, findings.Finding{
-				ID:       findings.IDSlug("tmp", p),
-				Path:     p,
-				Bytes:    sz.Allocated,
+				ID:    findings.IDSlug("tmp", p),
+				Path:  p,
+				Bytes: sz.Allocated, ReclaimBytes: privateBytes(sz),
 				Category: "tmp",
 				Risk:     findings.RiskAsk,
 				LastUsed: last,

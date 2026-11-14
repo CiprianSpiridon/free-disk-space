@@ -2,6 +2,7 @@ package scan
 
 import (
 	"context"
+	"os"
 	"os/exec"
 	"path/filepath"
 	"regexp"
@@ -10,12 +11,17 @@ import (
 	"time"
 
 	"github.com/CiprianSpiridon/free-disk-space/internal/findings"
+	"github.com/CiprianSpiridon/free-disk-space/internal/rustusage"
 )
 
 func toolchainCmd(name string, args ...string) (string, error) {
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	b, err := exec.CommandContext(ctx, name, args...).Output()
+	cmd := exec.CommandContext(ctx, name, args...)
+	if name == "rustup" {
+		cmd.Env = append(os.Environ(), "RUSTUP_AUTO_INSTALL=0")
+	}
+	b, err := cmd.Output()
 	return string(b), err
 }
 
@@ -114,30 +120,100 @@ func classifyDeviceSupport(ctx *Context) {
 	}
 }
 
+var RustupShow = func() (string, error) { return toolchainCmd("rustup", "show") }
+var RustupOverrides = func() (string, error) { return toolchainCmd("rustup", "override", "list") }
+var RustcVersion = func(name string) (string, error) { return toolchainCmd("rustup", "run", name, "rustc", "-vV") }
+
 func classifyRustup(ctx *Context) {
+	// Do not launch tools or inspect project roots when there are no Rust findings.
+	have := false
+	for _, f := range ctx.Report.Findings {
+		if filepath.Base(filepath.Dir(f.Path)) == "toolchains" {
+			have = true
+		}
+	}
+	if !have {
+		return
+	}
 	keep := rustupKeepNames()
+	if keep == nil {
+		keep = map[string]bool{}
+	}
+	show, showErr := RustupShow()
+	overrides, overrideErr := RustupOverrides()
+	for _, line := range strings.Split(show, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) > 0 && (strings.Contains(line, "(default)") || strings.Contains(line, "(active")) {
+			keep[fields[0]] = true
+		}
+		if len(fields) == 2 && fields[0] == "name:" {
+			keep[fields[1]] = true
+		}
+	}
+	for _, line := range strings.Split(overrides, "\n") {
+		fields := strings.Fields(line)
+		if len(fields) >= 2 && fields[0] != "no" {
+			keep[fields[len(fields)-1]] = true
+		}
+	}
+	if env := os.Getenv("RUSTUP_TOOLCHAIN"); env != "" {
+		keep[env] = true
+	}
+	roots := discoverWorkRoots(ctx.Catalog, ctx.Home)
+	refs, complete := map[string]string{}, true
+	if ctx.Sizer != nil {
+		if files, ok := ctx.Sizer.PinFiles(roots); ok {
+			refs, complete = rustusage.ReadPins(files)
+		} else {
+			refs, complete = rustusage.Collect(roots)
+		}
+	} else {
+		refs, complete = rustusage.Collect(roots)
+	}
+	versions := map[string]bool{}
+	for name := range keep {
+		if v, err := RustcVersion(name); err == nil && v != "" {
+			versions[v] = true
+		}
+	}
 	for i := range ctx.Report.Findings {
 		f := &ctx.Report.Findings[i]
-		base := filepath.Base(f.Path)
-		dir := filepath.Dir(f.Path)
-		if filepath.Base(dir) != "toolchains" && !strings.HasSuffix(dir, filepath.Join(".rustup", "toolchains")) {
-			if f.Category == "rustup" || f.Category == "rust-toolchains" {
-				if f.Risk == findings.RiskUnusedRuntime {
-					f.Risk = findings.RiskKeep
-				}
-			}
+		name := filepath.Base(f.Path)
+		if filepath.Base(filepath.Dir(f.Path)) != "toolchains" {
 			continue
 		}
-		if rustupKeep(base, keep) {
+		protected, reason := false, ""
+		for k := range keep {
+			if rustusage.Matches(name, k) {
+				protected = true
+				reason = "active/default/overridden rustup toolchain"
+			}
+		}
+		for pin, path := range refs {
+			if rustusage.Matches(name, pin) {
+				protected = true
+				reason = "pinned by " + path
+			}
+		}
+		if protected {
 			f.Risk = findings.RiskKeep
-			f.Why = "current rustup toolchain"
+			f.Why = reason
 			f.Reclaim = nil
 			continue
 		}
+		if !complete || showErr != nil || overrideErr != nil {
+			f.Risk = findings.RiskAsk
+			f.Why = "rustup usage could not be fully checked"
+			f.Reclaim = nil
+			f.SummaryOnly = true
+			continue
+		}
 		f.Risk = findings.RiskUnusedRuntime
-		name := rustupUninstallName(base)
-		f.Why = "extra rustup toolchain"
-		f.Reclaim = &findings.Reclaim{Cmd: "rustup toolchain uninstall " + name}
+		f.Why = "no active selection, override or project pin in scanned roots"
+		if v, err := RustcVersion(name); err == nil && versions[v] {
+			f.Why = "duplicate of the active compiler; active directory is kept"
+		}
+		f.Reclaim = &findings.Reclaim{Kind: "rustup-toolchain", Target: name, Roots: roots, Cmd: "rustup toolchain uninstall " + shellQuote(name)}
 	}
 }
 
@@ -153,7 +229,7 @@ func rustupKeepNames() map[string]bool {
 			continue
 		}
 		name, _, _ := strings.Cut(line, " ")
-		if strings.Contains(line, "(default)") || strings.HasPrefix(name, "stable") {
+		if strings.Contains(line, "(default)") || strings.Contains(line, "(active") {
 			out[name] = true
 		}
 	}

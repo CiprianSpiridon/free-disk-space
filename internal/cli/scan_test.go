@@ -28,6 +28,21 @@ func TestScanFlags(t *testing.T) {
 	}
 }
 
+func TestScanWorkerSetting(t *testing.T) {
+	g := &Global{Catalog: filepath.Join(t.TempDir(), "missing.yaml"), Stdout: &bytes.Buffer{}, Stderr: &bytes.Buffer{}}
+	for _, args := range [][]string{{"--workers=10"}, {"--workers", "10"}, {"--workers=1"}} {
+		err := runScan(g, args)
+		if errors.Is(err, ErrUsage) || err == nil {
+			t.Fatalf("valid workers rejected before catalog load: %v %v", args, err)
+		}
+	}
+	for _, args := range [][]string{{"--workers=0"}, {"--workers=65"}, {"--workers=no"}, {"--workers"}} {
+		if err := runScan(g, args); !errors.Is(err, ErrUsage) {
+			t.Fatalf("invalid workers accepted: %v %v", args, err)
+		}
+	}
+}
+
 func TestScanJSONNonTTY(t *testing.T) {
 	dir := t.TempDir()
 	t.Setenv("HOME", dir)

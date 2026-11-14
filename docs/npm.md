@@ -6,7 +6,7 @@ that downloads the darwin binary. It does not recompile Go. It does not
 include `cmd/`, `internal/`, or other `.go` sources.
 
 GitHub Release binaries must match this package version. Publish from
-`npm/` after `npm login`, **after** tag `v0.2.0` has darwin assets.
+`npm/` after `npm login`, **after** tag `v0.3.0` has darwin assets.
 
 ## Package name
 
@@ -17,7 +17,7 @@ partition tool — do not use it. npm also rejected `freedisk`,
 `free-disk-space`, and `fdsk`.
 
 Keep `npm/package.json` `version` in sync with `internal/version.Version`
-(currently `0.2.0`).
+(currently `0.3.0`).
 
 ## Users (after GitHub Release **and** npm publish)
 
@@ -46,8 +46,8 @@ Until a matching GitHub Release exists, npm install will 404 and print:
 No GitHub release for this version. Use: go install github.com/CiprianSpiridon/free-disk-space/cmd/freedisk@latest
 ```
 
-That `go install` line is the real path today. There is no npm package on
-the registry yet, and there is no GitHub Release tarball yet.
+The npm package is published as `fspace`; its version must have matching GitHub
+Release assets. The fallback above is useful if an asset is unavailable.
 
 Uninstall:
 
@@ -82,12 +82,12 @@ testing).
 
 ## Operators: publish checklist
 
-Do this **after** `v0.2.0` is tagged and the GitHub Action has attached
+Do this **after** `v0.3.0` is tagged and the GitHub Action has attached
 darwin binaries. Do **not** `npm publish` before those assets exist.
 `npx fspace` downloads `v${version}` from GitHub Releases.
 
 1. `go test ./...`
-2. Commit, tag, and push: `git tag v0.2.0 && git push origin v0.2.0`
+2. Commit, tag, and push: `git tag v0.3.0 && git push origin v0.3.0`
 3. Confirm the GitHub Release has:
    - `freedisk-darwin-arm64`
    - `freedisk-darwin-amd64`
@@ -97,7 +97,7 @@ darwin binaries. Do **not** `npm publish` before those assets exist.
 6. `npm login` (browser) if `npm whoami` is not you
 7. `cd npm && npm publish --access public`
    Do **not** `npm publish --prefix npm` from the repo root (ENOENT).
-8. Smoke: `npx fspace version` on a Mac (Node 18+) — should print `0.2.0`
+8. Smoke: `npx fspace version` on a Mac (Node 18+) — should print `0.3.0`
 
 Bump `npm/package.json` `version` whenever `internal/version.Version` bumps,
 and publish a matching GitHub Release first.
@@ -109,7 +109,7 @@ From `npm/`:
 ```bash
 npm test
 npm pack
-tar tzf fspace-0.2.0.tgz
+tar tzf fspace-0.3.0.tgz
 ```
 
 Expected entries (plus npm’s `package/` prefix):
@@ -134,7 +134,7 @@ same asset names).
 
 | Path | Role |
 | --- | --- |
-| `npm/package.json` | publish manifest (`fspace` 0.2.0) |
+| `npm/package.json` | publish manifest (`fspace` 0.3.0) |
 | `npm/bin/freedisk` | shim; execs `vendor/freedisk` |
 | `npm/scripts/install.js` | `postinstall` download + checksum |
 | `npm/README.md` | registry listing |

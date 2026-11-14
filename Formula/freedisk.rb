@@ -8,8 +8,8 @@
 class Freedisk < Formula
   desc "macOS disk-audit CLI; scan never deletes"
   homepage "https://github.com/CiprianSpiridon/free-disk-space"
-  url "https://github.com/CiprianSpiridon/free-disk-space/archive/refs/tags/v0.2.0.tar.gz"
-  sha256 "f12d9dd4525997876f0f463f672c5b3931a06caf605c506972cd882672b973d2"
+  url "https://github.com/CiprianSpiridon/free-disk-space/archive/refs/tags/v0.3.0.tar.gz"
+  sha256 "ad62cb0ba69f727ab49b472e4c83546b9db51562a017f7f56f69e635f03e1935"
   license "MIT"
   head "https://github.com/CiprianSpiridon/free-disk-space.git", branch: "main"
 

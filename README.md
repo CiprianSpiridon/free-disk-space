@@ -296,6 +296,19 @@ allocated/apparent sizes, private bytes, newest dates and entry counts. Filesyst
 caches and concurrent disk activity affect timings. Five had the lowest average;
 five and ten were effectively tied in the second pass.
 
+A later **full-scan** comparison on this developer Mac used all ten enabled
+phases and an unchanged catalog, in the order 5 → 10 → 1:
+
+| Workers | Full scan wall time | Result |
+| ---: | ---: | --- |
+| 1 | 20m 11.9s | Completed |
+| 5 | 16m 39.4s | Completed |
+| 10 | 16m 39.4s cutoff | Cancelled while still in known paths |
+
+Five workers saved **3m 32.6s (17.5%)** against one worker. Both completed runs
+recorded 236 unreadable paths. These are sequential live-Mac measurements;
+kernel caches and concurrent disk activity affect the comparison.
+
 ```bash
 FREEDISK_BENCH_PATH=/path/to/tree go test ./internal/size -run '^$' -bench '^BenchmarkWorkerCounts$' -benchtime=1x -benchmem
 freedisk scan --workers=5 --json    # full scan, all enabled phases
